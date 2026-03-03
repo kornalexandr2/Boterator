@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM Администратора</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            padding: 16px;
+        }
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-card h3 { margin: 0; font-size: 14px; color: var(--tg-theme-hint-color, #888); }
+        .stat-card p { margin: 5px 0 0; font-size: 20px; font-weight: bold; }
+        .btn {
+            background-color: var(--tg-theme-button-color, #2481cc);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        .section { margin-top: 20px; border-top: 1px solid #ccc; padding-top: 10px;}
+    </style>
+</head>
+<body>
+    <h2>Дашборд</h2>
+    <div class="dashboard">
+        <div class="stat-card">
+            <h3>Доход (мес)</h3>
+            <p>150,000 ₽</p>
+        </div>
+        <div class="stat-card">
+            <h3>Новые юзеры</h3>
+            <p>+45</p>
+        </div>
+        <div class="stat-card">
+            <h3>Отток (Churn)</h3>
+            <p>2.5%</p>
+        </div>
+        <div class="stat-card">
+            <h3>Активные</h3>
+            <p>1,250</p>
+        </div>
+    </div>
+
+    <button class="btn" onclick="exportCSV()">Выгрузить CSV</button>
+
+    <div class="section">
+        <h3>Управление</h3>
+        <button class="btn" onclick="showSection('tariffs')">Управление тарифами</button>
+        <button class="btn" onclick="showSection('users')">Управление пользователями</button>
+        <button class="btn" onclick="showSection('broadcast')">Рассылка (Broadcast)</button>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        function exportCSV() {
+            tg.showConfirm("Сгенерировать CSV выгрузку? Бот пришлет файл в личные сообщения.");
+            tg.sendData(JSON.stringify({action: "export_csv"}));
+        }
+
+        function showSection(section) {
+            tg.sendData(JSON.stringify({action: `open_${section}`}));
+            tg.close(); // Return to bot to show inline menus for specific management
+        }
+    </script>
+</body>
+</html>
