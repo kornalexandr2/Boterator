@@ -1,0 +1,28 @@
+bot:
+  token: "1234567890:YOUR_BOT_TOKEN_HERE"
+  admin_ids: [123456789] # List of Telegram user IDs with root access
+  grace_period_days: 3   # Days to wait for payment before removing
+
+database:
+  host: "localhost"
+  port: 3306
+  user: "root"
+  password: "YOUR_PASSWORD"
+  db_name: "boterator"
+
+payments:
+  mock_mode: true        # Set to false in production
+  yookassa:
+    shop_id: ""
+    secret_key: ""
+  sberbank:
+    username: ""
+    password: ""
+  yoomoney:
+    receiver_wallet: ""
+
+app:
+  host: "127.0.0.1"
+  port: 8000
+  base_url: "https://yourdomain.com" # Public URL for Webhooks and TWA
+  secret_key: "GENERATE_RANDOM_SECRET_STRING_HERE"
