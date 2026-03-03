@@ -34,7 +34,8 @@ mkdir -p "$DEVELOPE_DIR"
 # Проверка наличия программы
 if [ -f "$ENV_FILE" ]; then
     echo -e "${YELLOW}Файл конфигурации уже существует. Программа уже установлена?${NC}"
-    read -p "Продолжить и перезаписать конфиг? (y/N): " CONTINUE
+    echo -n "Продолжить и перезаписать конфиг? (y/N): "
+    read CONTINUE < /dev/tty
     if [[ "$CONTINUE" != "y" && "$CONTINUE" != "Y" ]]; then
         echo "Установка прервана."
         exit 0
@@ -46,11 +47,15 @@ echo -e "
 ${YELLOW}=== Настройка Boterator ===${NC}"
 echo "Оставьте поле пустым и нажмите Enter, чтобы пропустить (будут использованы дефолтные значения/пустота)."
 
-read -p "Введите Telegram Bot Token: " BOT_TOKEN
-read -p "Введите ID Администратора (число): " ADMIN_ID
+echo -n "Введите Telegram Bot Token: "
+read BOT_TOKEN < /dev/tty
+echo -n "Введите ID Администратора (число): "
+read ADMIN_ID < /dev/tty
 
 # Настройка MySQL
-read -p "Установить и настроить MySQL локально автоматически? (Y/n): " AUTO_MYSQL
+echo -n "Установить и настроить MySQL локально автоматически? (Y/n): "
+read AUTO_MYSQL < /dev/tty
+
 if [[ "$AUTO_MYSQL" != "n" && "$AUTO_MYSQL" != "N" ]]; then
     MYSQL_USER="boterator_user"
     MYSQL_PASS=$(openssl rand -hex 12)
@@ -66,14 +71,15 @@ if [[ "$AUTO_MYSQL" != "n" && "$AUTO_MYSQL" != "N" ]]; then
     mysql -e "FLUSH PRIVILEGES;"
     
     echo -e "${GREEN}MySQL настроен автоматически.${NC}"
-    echo -e "Пользователь: $MYSQL_USER
-Пароль: $MYSQL_PASS
-База: $MYSQL_DB" > "$DEVELOPE_DIR/mysql_credentials.txt"
+    echo -e "Пользователь: $MYSQL_USER\nПароль: $MYSQL_PASS\nБаза: $MYSQL_DB" > "$DEVELOPE_DIR/mysql_credentials.txt"
     echo "Реквизиты сохранены в $DEVELOPE_DIR/mysql_credentials.txt"
 else
-    read -p "Введите MySQL User: " MYSQL_USER
-    read -p "Введите MySQL Password: " MYSQL_PASS
-    read -p "Введите MySQL Database Name: " MYSQL_DB
+    echo -n "Введите MySQL User: "
+    read MYSQL_USER < /dev/tty
+    echo -n "Введите MySQL Password: "
+    read MYSQL_PASS < /dev/tty
+    echo -n "Введите MySQL Database Name: "
+    read MYSQL_DB < /dev/tty
 fi
 
 # Генерация .env файла
