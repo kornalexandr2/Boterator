@@ -17,15 +17,38 @@ cd "$PROJECT_DIR"
 
 # Git pull
 echo "Загрузка обновлений из репозитория..."
-git pull origin main
+# Используем master, так как это основная ветка проекта
+git pull origin master
 
 # Update dependencies
 echo "Обновление зависимостей..."
 source venv/bin/activate
-pip install -r requirements.txt
+python3 -m pip install --upgrade pip
+python3 -m pip install -r requirements.txt
 
-# Restart service
-echo "Перезапуск службы systemd..."
+# Обновление службы systemd (на случай изменения параметров запуска)
+SERVICE_FILE="/etc/systemd/system/boterator.service"
+echo "Обновление конфигурации systemd службы..."
+
+cat <<EOF > "$SERVICE_FILE"
+[Unit]
+Description=Boterator Daemon
+After=network.target mysql.service
+
+[Service]
+User=root
+WorkingDirectory=$PROJECT_DIR
+Environment="PATH=$PROJECT_DIR/venv/bin"
+ExecStart=$PROJECT_DIR/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+echo "Перезапуск службы..."
 systemctl restart boterator.service
 
 echo -e "${GREEN}Обновление успешно завершено!${NC}"
