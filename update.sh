@@ -12,7 +12,8 @@ fi
 
 echo "Начинаем обновление Boterator..."
 
-PROJECT_DIR=$(pwd)
+PROJECT_DIR="/opt/boterator"
+cd "$PROJECT_DIR"
 
 # Git pull
 echo "Загрузка обновлений из репозитория..."

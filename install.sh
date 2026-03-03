@@ -15,7 +15,16 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-PROJECT_DIR=$(pwd)
+PROJECT_DIR="/opt/boterator"
+
+if [ ! -d "$PROJECT_DIR" ]; then
+    echo "Клонирование репозитория в $PROJECT_DIR..."
+    apt-get update && apt-get install -y git
+    git clone https://github.com/kornalexandr2/Boterator.git "$PROJECT_DIR"
+fi
+
+cd "$PROJECT_DIR"
+
 DEVELOPE_DIR="$PROJECT_DIR/DEVELOPE"
 ENV_FILE="$DEVELOPE_DIR/.env"
 
