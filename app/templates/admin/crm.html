@@ -13,10 +13,11 @@
             --button: var(--tg-theme-button-color, #2481cc);
             --button-text: var(--tg-theme-button-text-color, #ffffff);
             --secondary-bg: var(--tg-theme-secondary-bg-color, #f0f0f0);
+            --danger: #e53935;
         }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 16px; margin: 0; }
         .nav-buttons { display: flex; gap: 8px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 8px; }
-        .nav-btn { background: var(--secondary-bg); color: var(--text); border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+        .nav-btn { background: var(--secondary-bg); color: var(--text); border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; white-space: nowrap; font-size: 14px; }
         .nav-btn.active { background: var(--button); color: var(--button-text); }
         .section { display: none; }
         .section.active { display: block; }
@@ -24,12 +25,18 @@
         .stat-card { background: var(--secondary-bg); padding: 12px; border-radius: 8px; text-align: center; }
         .stat-card h3 { margin: 0; font-size: 12px; color: var(--hint); }
         .stat-card p { margin: 4px 0 0; font-size: 18px; font-weight: bold; }
-        .btn { background: var(--button); color: var(--button-text); border: none; padding: 10px; border-radius: 8px; cursor: pointer; width: 100%; margin-bottom: 10px; }
-        .list-item { background: var(--secondary-bg); padding: 12px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .btn { background: var(--button); color: var(--button-text); border: none; padding: 10px; border-radius: 8px; cursor: pointer; width: 100%; margin-bottom: 10px; font-weight: 600; }
+        .list-item { background: var(--secondary-bg); padding: 12px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid transparent; }
+        .list-item.admin { border-left-color: var(--button); }
+        .list-item-info { flex: 1; }
+        .list-item-title { font-weight: bold; font-size: 14px; }
+        .list-item-subtitle { font-size: 12px; color: var(--hint); }
+        .list-item-actions { display: flex; gap: 8px; align-items: center; }
         .form-group { margin-bottom: 12px; }
         label { display: block; font-size: 12px; color: var(--hint); margin-bottom: 4px; }
         input, textarea, select { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; background: var(--bg); color: var(--text); box-sizing: border-box; }
-        #loading-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.1); display: none; align-items: center; justify-content: center; z-index: 1000; }
+        .kick-btn { background: none; border: 1px solid var(--danger); color: var(--danger); padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: bold; }
+        #loading-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.1); display: none; align-items: center; justify-content: center; z-index: 1000; font-size: 30px; }
     </style>
 </head>
 <body>
@@ -68,7 +75,10 @@
         </div>
     </div>
 
-    <div id="section-users" class="section"><h2>Пользователи</h2><div id="users-list"></div></div>
+    <div id="section-users" class="section">
+        <h2>Пользователи</h2>
+        <div id="users-list"></div>
+    </div>
 
     <div id="section-broadcast" class="section">
         <h2>Рассылка</h2>
@@ -91,10 +101,6 @@
             <label>Номер кошелька YooMoney</label>
             <input type="text" id="s-yoo-receiver" placeholder="41001XXXXXXXXXXXX">
         </div>
-        <div id="yookassa-fields" style="display:none;">
-            <div class="form-group"><label>Shop ID</label><input type="text" id="s-yoo-shop-id"></div>
-            <div class="form-group"><label>Secret Key</label><input type="password" id="s-yoo-key"></div>
-        </div>
         <button class="btn" onclick="saveSettings()">Сохранить</button>
     </div>
 
@@ -106,14 +112,13 @@
         function toggleSettingsFields() {
             const mode = document.getElementById('s-payment-mode').value;
             document.getElementById('yoomoney-fields').style.display = (mode === 'yoomoney') ? 'block' : 'none';
-            document.getElementById('yookassa-fields').style.display = (mode === 'yookassa') ? 'block' : 'none';
         }
 
         async function switchSection(id, btn) {
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(`section-${id}`).classList.add('active');
-            btn.classList.add('active');
+            if(btn) btn.classList.add('active');
             if(id==='dashboard') loadStats();
             if(id==='tariffs') loadTariffs();
             if(id==='users') loadUsers();
@@ -129,7 +134,7 @@
                 document.getElementById('stat-new-users').innerText = d.new_users;
                 document.getElementById('stat-active').innerText = d.active_subscriptions;
                 document.getElementById('stat-total').innerText = d.total_users;
-            } catch(e) { tg.showAlert("Ошибка"); }
+            } catch(e) {}
             showLoading(false);
         }
 
@@ -156,24 +161,40 @@
                 const us = await res.json();
                 us.forEach(u => {
                     const item = document.createElement('div'); 
-                    item.className = 'list-item';
-                    if (u.is_admin) {
-                        item.style.borderLeft = '4px solid var(--button)';
-                        item.style.background = 'var(--secondary-bg)';
-                    }
+                    item.className = 'list-item' + (u.is_admin ? ' admin' : '');
                     item.innerHTML = `
                         <div class="list-item-info">
-                            <div class="list-item-title">
-                                ${u.is_admin ? '👑 ' : ''}${u.username}
-                            </div>
-                            <div class="list-item-subtitle">${u.full_name || ''}</div>
+                            <div class="list-item-title">${u.is_admin?'👑 ':''}${u.username}</div>
+                            <div class="list-item-subtitle">${u.has_active_sub?'✅ Активен':'❌ Нет'}</div>
                         </div>
-                        <div>${u.has_active_sub ? '✅' : '❌'}</div>
+                        <div class="list-item-actions">
+                            ${!u.is_admin ? `<button class="kick-btn" onclick="kickUser(${u.telegram_id}, '${u.username}')">KICK</button>` : ''}
+                        </div>
                     `;
                     cont.appendChild(item);
                 });
             } catch(e) {}
             showLoading(false);
+        }
+
+        function kickUser(id, username) {
+            tg.showPopup({
+                title: 'Исключить пользователя',
+                message: `Вы уверены, что хотите выгнать @${username}? Укажите причину:`,
+                buttons: [
+                    {id: 'cancel', type: 'cancel', text: 'Отмена'},
+                    {id: 'kick', type: 'destructive', text: 'ВЫГНАТЬ'}
+                ]
+            }, (buttonId) => {
+                if (buttonId === 'kick') {
+                    // Telegram TWA doesn't have a built-in text input in showPopup, 
+                    // so we use a simple prompt for the reason.
+                    const reason = prompt("Причина исключения:", "Нарушение правил сообщества");
+                    if (reason !== null) {
+                        runAction('kick_user', {target_id: id, reason: reason});
+                    }
+                }
+            });
         }
 
         async function loadSettings() {
@@ -183,8 +204,6 @@
                 const d = await res.json();
                 document.getElementById('s-payment-mode').value = d.payment_mode || 'mock';
                 document.getElementById('s-yoo-receiver').value = d.yoomoney_receiver || '';
-                document.getElementById('s-yoo-shop-id').value = d.yookassa_shop_id || '';
-                document.getElementById('s-yoo-key').value = d.yookassa_secret_key || '';
                 toggleSettingsFields();
             } catch(e) {}
             showLoading(false);
@@ -193,15 +212,11 @@
         async function saveSettings() {
             const data = {
                 payment_mode: document.getElementById('s-payment-mode').value,
-                yoomoney_receiver: document.getElementById('s-yoo-receiver').value,
-                yookassa_shop_id: document.getElementById('s-yoo-shop-id').value,
-                yookassa_secret_key: document.getElementById('s-yoo-key').value
+                yoomoney_receiver: document.getElementById('s-yoo-receiver').value
             };
             showLoading(true);
-            try {
-                const res = await fetch('/twa/settings', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
-                if((await res.json()).status === 'ok') tg.showAlert("Сохранено!");
-            } catch(e) {}
+            const res = await fetch('/twa/settings', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+            if((await res.json()).status === 'ok') tg.showAlert("Сохранено!");
             showLoading(false);
         }
 
@@ -215,19 +230,14 @@
             closeTariffForm(); loadTariffs(); showLoading(false);
         }
 
-        async function deleteTariff(id) {
-            if(confirm("Удалить?")) {
-                showLoading(true);
-                await fetch(`/twa/tariffs/${id}`, { method:'DELETE' });
-                loadTariffs(); showLoading(false);
-            }
-        }
-
         async function runAction(action, data={}) {
             showLoading(true);
-            const res = await fetch('/twa/action', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action, ...data}) });
-            const r = await res.json();
-            tg.showAlert(r.message);
+            try {
+                const res = await fetch('/twa/action', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action, ...data}) });
+                const r = await res.json();
+                tg.showAlert(r.message);
+                if (action === 'kick_user') loadUsers();
+            } catch(e) { tg.showAlert("Ошибка"); }
             showLoading(false);
         }
 
