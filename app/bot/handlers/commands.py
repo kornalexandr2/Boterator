@@ -32,13 +32,13 @@ async def start_cmd(message: types.Message, session: AsyncSession | None):
     builder = InlineKeyboardBuilder()
     builder.button(
          text="Открыть витрину тарифов", 
-         web_app=types.WebAppInfo(url=f"{settings.app.base_url}/twa/store")
+         web_app=types.WebAppInfo(url=f"{settings.app.base_url.rstrip('/')}/twa/store")
     )
     
     if message.from_user.id in settings.bot.admin_ids:
          builder.button(
              text="⚙️ CRM Администратора",
-             web_app=types.WebAppInfo(url=f"{settings.app.base_url}/twa/admin")
+             web_app=types.WebAppInfo(url=f"{settings.app.base_url.rstrip('/')}/twa/admin")
          )
     
     builder.adjust(1)
