@@ -35,8 +35,11 @@ fi
 
 cd "$PROJECT_DIR"
 
-# Гарантируем наличие актуальных файлов скриптов
-git pull origin master || echo "Не удалось обновить через git pull, продолжаем с текущими файлами."
+# Гарантируем наличие актуальных файлов скриптов (только если это git-репозиторий)
+if [ -d ".git" ]; then
+    git fetch origin master
+    git reset --hard origin/master || echo "Не удалось обновить через git pull, продолжаем с текущими файлами."
+fi
 
 DEVELOPE_DIR="$PROJECT_DIR/DEVELOPE"
 ENV_FILE="$DEVELOPE_DIR/.env"
