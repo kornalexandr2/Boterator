@@ -31,7 +31,15 @@ async def start_cmd(message: types.Message, session: AsyncSession | None):
 
     builder = InlineKeyboardBuilder()
     
-    is_admin = message.from_user.id in settings.bot.admin_ids
+    # Check if user is admin (Config OR DB)
+    is_admin = False
+    if message.from_user.id in settings.bot.admin_ids:
+        is_admin = True
+    elif session:
+        stmt = select(User).where(User.telegram_id == message.from_user.id, User.is_admin == True)
+        res = await session.execute(stmt)
+        if res.scalar_one_or_none():
+            is_admin = True
 
     # Store button is now visible to everyone (including admins)
     builder.button(

@@ -104,9 +104,24 @@ async def list_users(db: AsyncSession = Depends(get_db_session)):
     result = await db.execute(stmt)
     users = result.scalars().all()
     user_list = []
+    # Primary admin from config
+    super_admin_ids = settings.bot.admin_ids
+    
     for u in users:
         active_sub = (await db.execute(select(Subscription).where(Subscription.user_id == u.telegram_id, Subscription.is_active == True))).scalar_one_or_none()
-        user_list.append({"telegram_id": u.telegram_id, "username": u.username or f"ID: {u.telegram_id}", "full_name": f"{u.first_name or ''} {u.last_name or ''}".strip(), "has_active_sub": active_sub is not None, "is_admin": u.is_admin})
+        
+        # Admin is EITHER in config OR has is_admin flag in DB
+        is_actually_admin = u.telegram_id in super_admin_ids or u.is_admin
+        is_super = u.telegram_id in super_admin_ids
+
+        user_list.append({
+            "telegram_id": u.telegram_id, 
+            "username": u.username or f"ID: {u.telegram_id}", 
+            "full_name": f"{u.first_name or ''} {u.last_name or ''}".strip(), 
+            "has_active_sub": active_sub is not None, 
+            "is_admin": is_actually_admin,
+            "is_super": is_super
+        })
     return user_list
 
 @router.get("/settings")
@@ -142,15 +157,12 @@ async def process_twa_action(request: Request, background_tasks: BackgroundTasks
         if not bot: return JSONResponse({"status": "error", "message": "Бот не запущен"}, status_code=500)
 
         user_id = data.get("user_id") 
-        
-        # Managed chats for links and kicks
         chats_stmt = select(ManagedChat).where(ManagedChat.is_active == True)
         chats_res = await db.execute(chats_stmt)
         managed_chats = chats_res.scalars().all()
 
         if action == "buy":
             tariff_id = data.get("tariff_id")
-            email = data.get("email")
             tariff = (await db.execute(select(Tariff).where(Tariff.id == tariff_id))).scalar_one_or_none()
             if not tariff: return JSONResponse({"status": "error", "message": "Тариф не найден"}, status_code=404)
 
@@ -162,16 +174,13 @@ async def process_twa_action(request: Request, background_tasks: BackgroundTasks
                 end_date = datetime.now(timezone.utc) + timedelta(days=tariff.duration_days)
                 db.add(Subscription(user_id=user_id, tariff_id=tariff.id, start_date=datetime.now(timezone.utc), end_date=end_date, is_active=True))
                 await db.commit()
-                
                 chat_links = "\n".join([f"🔹 <a href='{c.invite_link}'>{c.title}</a>" for c in managed_chats if c.invite_link])
-                welcome = f"✅ <b>Триал активирован!</b>\nДо: {end_date.strftime('%d.%m.%Y')}\n\n<b>Доступные ресурсы:</b>\n{chat_links}"
-                await bot.send_message(user_id, welcome)
+                await bot.send_message(user_id, f"✅ <b>Триал активирован!</b>\nДо: {end_date.strftime('%d.%m.%Y')}\n\n<b>Ссылки:</b>\n{chat_links}")
                 return JSONResponse({"status": "ok", "message": "Активировано!"})
 
             settings_dict = {s.key: s.value for s in (await db.execute(select(SystemSetting))).scalars().all()}
             mode = settings_dict.get("payment_mode", "mock")
             provider = YooMoneyProvider(receiver=settings_dict.get("yoomoney_receiver", "")) if mode == "yoomoney" else MockProvider()
-            
             pay_res = await provider.create_payment(tariff.price, f"Оплата: {tariff.name}", {"user_id": user_id, "tariff_id": tariff_id})
             if pay_res.success:
                 db.add(Payment(user_id=user_id, amount=tariff.price, provider=mode, status="pending", transaction_id=pay_res.transaction_id))
@@ -183,35 +192,37 @@ async def process_twa_action(request: Request, background_tasks: BackgroundTasks
         # ADMIN ACTIONS
         admin_id = settings.bot.admin_ids[0] if settings.bot.admin_ids else None
         
+        if action == "promote_admin":
+            target_id = data.get("target_id")
+            await db.execute(update(User).where(User.telegram_id == target_id).values(is_admin=True))
+            await db.commit()
+            return JSONResponse({"status": "ok", "message": "Пользователь назначен администратором."})
+
+        if action == "demote_admin":
+            target_id = data.get("target_id")
+            if target_id in settings.bot.admin_ids:
+                return JSONResponse({"status": "error", "message": "Нельзя снять права с главного администратора из конфига."}, status_code=400)
+            await db.execute(update(User).where(User.telegram_id == target_id).values(is_admin=False))
+            await db.commit()
+            return JSONResponse({"status": "ok", "message": "Права администратора сняты."})
+
         if action == "kick_user":
             target_id = data.get("target_id")
-            reason = data.get("reason", "Нарушение правил или решение администрации")
-            
-            # 1. Deactivate all subscriptions
+            reason = data.get("reason", "Нарушение правил")
             await db.execute(update(Subscription).where(Subscription.user_id == target_id).values(is_active=False))
             await db.commit()
-            
-            # 2. Kick from all managed chats
-            kick_count = 0
             for chat in managed_chats:
                 try:
                     await bot.ban_chat_member(chat.chat_id, target_id)
-                    await bot.unban_chat_member(chat.chat_id, target_id) # Unban to allow joining later if paid
-                    kick_count += 1
-                except Exception as e:
-                    logger.warning(f"Failed to kick {target_id} from {chat.chat_id}: {e}")
-            
-            # 3. Notify user
-            try:
-                await bot.send_message(target_id, f"🔴 <b>Вы были исключены из всех ресурсов.</b>\n\nПричина: {reason}")
+                    await bot.unban_chat_member(chat.chat_id, target_id)
+                except Exception: pass
+            try: await bot.send_message(target_id, f"🔴 <b>Вы исключены.</b>\nПричина: {reason}")
             except Exception: pass
-            
-            return JSONResponse({"status": "ok", "message": f"Пользователь исключен из {kick_count} чатов."})
+            return JSONResponse({"status": "ok", "message": "Исключен."})
 
         if action == "export_csv":
             users = (await db.execute(select(User))).scalars().all()
-            output = io.StringIO()
-            writer = csv.writer(output)
+            output = io.StringIO(); writer = csv.writer(output)
             writer.writerow(["ID", "Username", "Email", "Admin", "Date"])
             for u in users: writer.writerow([u.telegram_id, u.username, u.email, u.is_admin, u.created_at])
             csv_file = BufferedInputFile(output.getvalue().encode('utf-8'), filename="users.csv")
@@ -219,8 +230,7 @@ async def process_twa_action(request: Request, background_tasks: BackgroundTasks
             return JSONResponse({"status": "ok", "message": "Отправлено"})
 
         if action == "broadcast":
-            text = data.get("text")
-            target = data.get("target", "all")
+            text = data.get("text"); target = data.get("target", "all")
             if target == "all": stmt = select(User.telegram_id)
             else: stmt = select(Subscription.user_id).where(Subscription.is_active == True).distinct()
             user_ids = (await db.execute(stmt)).scalars().all()
