@@ -99,7 +99,11 @@
         }
 
         async function buyTariff(id, requireEmail) {
-            let data = { tariff_id: id, action: "buy" };
+            let data = { 
+                tariff_id: id, 
+                action: "buy",
+                user_id: tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : null
+            };
             if (requireEmail) {
                 const emailInput = document.getElementById(`email_${id}`);
                 const email = emailInput ? emailInput.value : '';

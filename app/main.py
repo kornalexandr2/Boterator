@@ -42,6 +42,8 @@ if settings.bot.token:
 else:
     logger.warning("Bot token not found. Bot functionality will be disabled.")
 
+from app.bot.tasks import start_background_tasks
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
@@ -53,6 +55,8 @@ async def lifespan(app: FastAPI):
          try:
              await bot.set_webhook(webhook_url)
              logger.info(f"Webhook set to {webhook_url}")
+             # Start background tasks
+             start_background_tasks(bot)
          except Exception as e:
              logger.error(f"Failed to set webhook: {e}")
     else:
@@ -70,6 +74,7 @@ async def lifespan(app: FastAPI):
              logger.error(f"Error during bot shutdown: {e}")
 
 app = FastAPI(title="Boterator API", lifespan=lifespan)
+app.state.bot = bot
 app.include_router(api_routes.router)
 
 @app.get("/", response_class=HTMLResponse)
