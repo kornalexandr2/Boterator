@@ -46,10 +46,7 @@ apt-get update && apt-get install -y mysql-server
 
 # ПОПЫТКА СБРОСА ПАРОЛЯ (чтобы скрипт мог работать дальше)
 echo "Обеспечение доступа к MySQL..."
-# Пытаемся войти всеми способами и установить auth_socket для root
-sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH auth_socket; FLUSH PRIVILEGES;" || \
-mysql -u root -p1 -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH auth_socket; FLUSH PRIVILEGES;" || \
-echo "Предупреждение: Не удалось сбросить пароль root, попробуем продолжить..."
+sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH auth_socket; FLUSH PRIVILEGES;" 2>/dev/null || true
 
 # Генерируем данные для новой базы
 MYSQL_USER="boterator_user"
@@ -59,8 +56,7 @@ MYSQL_DB="boterator"
 echo "Создание пользователя и базы данных..."
 # Используем sudo для доступа через сокет
 sudo mysql <<EOF
-DROP DATABASE IF EXISTS $MYSQL_DB;
-CREATE DATABASE $MYSQL_DB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS $MYSQL_DB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 DROP USER IF EXISTS '$MYSQL_USER'@'localhost';
 CREATE USER '$MYSQL_USER'@'localhost' IDENTIFIED BY '$MYSQL_PASS';
 GRANT ALL PRIVILEGES ON $MYSQL_DB.* TO '$MYSQL_USER'@'localhost';
