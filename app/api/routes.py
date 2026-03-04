@@ -11,7 +11,7 @@ import io
 from aiogram.types import BufferedInputFile
 
 from app.database.session import async_session
-from app.database.models import User, Tariff, Subscription, Payment, SystemSetting
+from app.database.models import User, Tariff, Subscription, Payment, SystemSetting, ManagedChat
 from app.config import settings
 
 router = APIRouter(prefix="/twa", tags=["twa"])
@@ -43,6 +43,13 @@ async def get_store(request: Request):
 async def get_admin_crm(request: Request):
     return templates.TemplateResponse("admin/crm.html", {"request": request})
 
+@router.get("/managed-chats")
+async def list_managed_chats(db: AsyncSession = Depends(get_db_session)):
+    """Returns list of chats/channels for the store UI."""
+    stmt = select(ManagedChat).where(ManagedChat.is_active == True)
+    res = await db.execute(stmt)
+    return res.scalars().all()
+
 @router.get("/stats")
 async def get_stats(db: AsyncSession = Depends(get_db_session)):
     try:
@@ -72,28 +79,10 @@ async def save_tariff(request: Request, db: AsyncSession = Depends(get_db_sessio
     tid = data.get("id")
     try:
         if tid:
-            stmt = update(Tariff).where(Tariff.id == tid).values(
-                name=data["name"], 
-                description=data.get("description", ""), 
-                price=float(data["price"]), 
-                duration_days=int(data["duration_days"]), 
-                is_trial=bool(data.get("is_trial", False)), 
-                is_hidden=bool(data.get("is_hidden", False)), 
-                require_email=bool(data.get("require_email", False)), 
-                require_phone=bool(data.get("require_phone", False))
-            )
+            stmt = update(Tariff).where(Tariff.id == tid).values(name=data["name"], description=data.get("description", ""), price=float(data["price"]), duration_days=int(data["duration_days"]), is_trial=bool(data.get("is_trial", False)), is_hidden=bool(data.get("is_hidden", False)), require_email=bool(data.get("require_email", False)), require_phone=bool(data.get("require_phone", False)))
             await db.execute(stmt)
         else:
-            db.add(Tariff(
-                name=data["name"], 
-                description=data.get("description", ""), 
-                price=float(data["price"]), 
-                duration_days=int(data["duration_days"]), 
-                is_trial=bool(data.get("is_trial", False)), 
-                is_hidden=bool(data.get("is_hidden", False)), 
-                require_email=bool(data.get("require_email", False)), 
-                require_phone=bool(data.get("require_phone", False))
-            ))
+            db.add(Tariff(name=data["name"], description=data.get("description", ""), price=float(data["price"]), duration_days=int(data["duration_days"]), is_trial=bool(data.get("is_trial", False)), is_hidden=bool(data.get("is_hidden", False)), require_email=bool(data.get("require_email", False)), require_phone=bool(data.get("require_phone", False))))
         await db.commit()
         return {"status": "ok"}
     except Exception as e:
@@ -154,60 +143,44 @@ async def process_twa_action(request: Request, background_tasks: BackgroundTasks
         if not bot: return JSONResponse({"status": "error", "message": "Бот не запущен"}, status_code=500)
 
         user_id = data.get("user_id") 
+        
+        # Get list of links for welcome messages
+        chats_stmt = select(ManagedChat).where(ManagedChat.is_active == True)
+        chats_res = await db.execute(chats_stmt)
+        managed_chats = chats_res.scalars().all()
+        chat_links_text = "\n".join([f"🔹 <a href='{c.invite_link}'>{c.title}</a>" for c in managed_chats if c.invite_link])
+        welcome_suffix = f"\n\n<b>Доступные ресурсы:</b>\n{chat_links_text}" if chat_links_text else ""
+
         if action == "buy":
             tariff_id = data.get("tariff_id")
             email = data.get("email")
-            
             tariff = (await db.execute(select(Tariff).where(Tariff.id == tariff_id))).scalar_one_or_none()
             if not tariff: return JSONResponse({"status": "error", "message": "Тариф не найден"}, status_code=404)
 
-            # --- TRIAL LOGIC ---
             if tariff.is_trial:
-                # Check if user already used ANY trial
-                trial_stmt = select(Subscription).join(Tariff).where(
-                    Subscription.user_id == user_id,
-                    Tariff.is_trial == True
-                )
-                existing_trial = (await db.execute(trial_stmt)).scalar_one_or_none()
+                trial_stmt = select(Subscription).join(Tariff).where(Subscription.user_id == user_id, Tariff.is_trial == True)
+                if (await db.execute(trial_stmt)).scalar_one_or_none():
+                    return JSONResponse({"status": "error", "message": "Триал уже использован"}, status_code=400)
                 
-                if existing_trial:
-                    return JSONResponse({"status": "error", "message": "Вы уже использовали пробный период ранее."}, status_code=400)
-                
-                # Activate trial immediately
                 end_date = datetime.now(timezone.utc) + timedelta(days=tariff.duration_days)
-                new_sub = Subscription(
-                    user_id=user_id,
-                    tariff_id=tariff.id,
-                    start_date=datetime.now(timezone.utc),
-                    end_date=end_date,
-                    is_active=True
-                )
-                db.add(new_sub)
+                db.add(Subscription(user_id=user_id, tariff_id=tariff.id, start_date=datetime.now(timezone.utc), end_date=end_date, is_active=True))
                 await db.commit()
-                
-                await bot.send_message(user_id, f"✅ <b>Пробный период активирован!</b>\n\nТариф: {tariff.name}\nДействует до: {end_date.strftime('%d.%m.%Y %H:%M')}\n\nТеперь вы можете вступить в наши закрытые каналы.")
-                return JSONResponse({"status": "ok", "message": "Пробный период успешно активирован!"})
-            # -------------------
+                await bot.send_message(user_id, f"✅ <b>Триал активирован!</b>\nДо: {end_date.strftime('%d.%m.%Y')}{welcome_suffix}")
+                return JSONResponse({"status": "ok", "message": "Активировано!"})
 
             settings_dict = {s.key: s.value for s in (await db.execute(select(SystemSetting))).scalars().all()}
             mode = settings_dict.get("payment_mode", "mock")
-
-            if mode == "yookassa":
-                 return JSONResponse({"status": "error", "message": "YooKassa в разработке. Используйте YooMoney или Mock."}, status_code=400)
-            elif mode == "yoomoney":
-                receiver = settings_dict.get("yoomoney_receiver")
-                if not receiver: return JSONResponse({"status": "error", "message": "Кошелек YooMoney не настроен"}, status_code=400)
-                provider = YooMoneyProvider(receiver=receiver)
+            if mode == "yoomoney":
+                provider = YooMoneyProvider(receiver=settings_dict.get("yoomoney_receiver", ""))
             else:
                 provider = MockProvider()
             
             pay_res = await provider.create_payment(tariff.price, f"Оплата: {tariff.name}", {"user_id": user_id, "tariff_id": tariff_id})
             if pay_res.success:
                 db.add(Payment(user_id=user_id, amount=tariff.price, provider=mode, status="pending", transaction_id=pay_res.transaction_id))
-                if email: await db.execute(update(User).where(User.telegram_id == user_id).values(email=email))
                 await db.commit()
-                await bot.send_message(user_id, f"💳 <b>Оплата: {tariff.name}</b>\n\nСумма: {tariff.price} ₽\n\nСсылка: {pay_res.payment_url}\n\n<i>Режим: {mode}</i>")
-                return JSONResponse({"status": "ok", "message": "Ссылка отправлена ботом в ЛС."})
+                await bot.send_message(user_id, f"💳 <b>Оплата: {tariff.name}</b>\nСумма: {tariff.price} ₽\nСсылка: {pay_res.payment_url}\n\n<i>После оплаты ссылки станут доступны автоматически.</i>")
+                return JSONResponse({"status": "ok", "message": "Ссылка в ЛС!"})
             return JSONResponse({"status": "error", "message": "Ошибка платежной системы"}, status_code=500)
 
         admin_id = settings.bot.admin_ids[0] if settings.bot.admin_ids else None
@@ -218,21 +191,19 @@ async def process_twa_action(request: Request, background_tasks: BackgroundTasks
             writer.writerow(["ID", "Username", "Email", "Admin", "Date"])
             for u in users: writer.writerow([u.telegram_id, u.username, u.email, u.is_admin, u.created_at])
             csv_file = BufferedInputFile(output.getvalue().encode('utf-8'), filename="users.csv")
-            await bot.send_document(admin_id, csv_file, caption="Экспорт пользователей")
-            return JSONResponse({"status": "ok", "message": "Файл отправлен."})
+            await bot.send_document(admin_id, csv_file, caption="Экспорт")
+            return JSONResponse({"status": "ok", "message": "Отправлено"})
 
         if action == "broadcast":
             text = data.get("text")
             target = data.get("target", "all")
-            if not text: return JSONResponse({"status": "error", "message": "Текст пуст"}, status_code=400)
             if target == "all": stmt = select(User.telegram_id)
-            elif target == "active": stmt = select(Subscription.user_id).where(Subscription.is_active == True).distinct()
-            elif target == "expired": stmt = select(User.telegram_id).where(~User.telegram_id.in_(select(Subscription.user_id).where(Subscription.is_active == True)))
+            else: stmt = select(Subscription.user_id).where(Subscription.is_active == True).distinct()
             user_ids = (await db.execute(stmt)).scalars().all()
             background_tasks.add_task(run_broadcast_task, bot, user_ids, text)
-            return JSONResponse({"status": "ok", "message": f"Рассылка запущена ({len(user_ids)} чел)."})
+            return JSONResponse({"status": "ok", "message": "Запущено"})
             
-        return JSONResponse({"status": "ok", "message": "Действие обработано"})
+        return JSONResponse({"status": "ok", "message": "OK"})
     except Exception as e:
         logger.error(f"Error: {e}")
         return JSONResponse({"status": "error", "message": str(e)}, status_code=400)

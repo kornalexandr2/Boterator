@@ -78,3 +78,13 @@ class SystemSetting(Base):
     key = Column(String(255), primary_key=True)
     value = Column(Text, nullable=True)
     description = Column(String(255), nullable=True)
+
+
+class ManagedChat(Base):
+    __tablename__ = "managed_chats"
+
+    chat_id = Column(BigInteger, primary_key=True)
+    title = Column(String(255), nullable=False)
+    invite_link = Column(String(255), nullable=True)
+    is_active = Column(Boolean, default=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
