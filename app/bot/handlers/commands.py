@@ -33,15 +33,16 @@ async def start_cmd(message: types.Message, session: AsyncSession | None):
     
     is_admin = message.from_user.id in settings.bot.admin_ids
 
+    # Store button is now visible to everyone (including admins)
+    builder.button(
+         text="Открыть витрину тарифов", 
+         web_app=types.WebAppInfo(url=f"{settings.app.base_url.rstrip('/')}/twa/store")
+    )
+
     if is_admin:
          builder.button(
              text="⚙️ CRM Администратора",
              web_app=types.WebAppInfo(url=f"{settings.app.base_url.rstrip('/')}/twa/admin")
-         )
-    else:
-         builder.button(
-             text="Открыть витрину тарифов", 
-             web_app=types.WebAppInfo(url=f"{settings.app.base_url.rstrip('/')}/twa/store")
          )
     
     builder.adjust(1)

@@ -11,7 +11,7 @@ import io
 from aiogram.types import BufferedInputFile
 
 from app.database.session import async_session
-from app.database.models import User, Tariff, Subscription, Payment
+from app.database.models import User, Tariff, Subscription, Payment, SystemSetting
 from app.config import settings
 
 router = APIRouter(prefix="/twa", tags=["twa"])
@@ -29,8 +29,6 @@ async def run_broadcast_task(bot, user_ids: list[int], text: str):
         try:
             await bot.send_message(uid, text)
             success += 1
-            # Simple rate limiting: 20 msg/sec is safe for TG
-            # For massive broadcasts, more complex logic is needed
         except Exception as e:
             logger.warning(f"Failed to send broadcast to {uid}: {e}")
             failed += 1
@@ -52,7 +50,6 @@ async def get_admin_crm(request: Request):
 async def get_stats(db: AsyncSession = Depends(get_db_session)):
     """Returns dashboard statistics."""
     try:
-        # 1. Monthly revenue
         month_ago = datetime.now(timezone.utc) - timedelta(days=30)
         revenue_stmt = select(func.sum(Payment.amount)).where(
             Payment.status == "success",
@@ -61,17 +58,14 @@ async def get_stats(db: AsyncSession = Depends(get_db_session)):
         revenue_res = await db.execute(revenue_stmt)
         monthly_revenue = revenue_res.scalar() or 0
 
-        # 2. New users (last 30 days)
         new_users_stmt = select(func.count(User.telegram_id)).where(User.created_at >= month_ago)
         new_users_res = await db.execute(new_users_stmt)
         new_users_count = new_users_res.scalar() or 0
 
-        # 3. Active subscriptions
         active_subs_stmt = select(func.count(Subscription.id)).where(Subscription.is_active == True)
         active_subs_res = await db.execute(active_subs_stmt)
         active_count = active_subs_res.scalar() or 0
 
-        # 4. Total users
         total_users_stmt = select(func.count(User.telegram_id))
         total_users_res = await db.execute(total_users_stmt)
         total_count = total_users_res.scalar() or 0
@@ -81,7 +75,7 @@ async def get_stats(db: AsyncSession = Depends(get_db_session)):
             "new_users": f"+{new_users_count}",
             "active_subscriptions": active_count,
             "total_users": total_count,
-            "churn_rate": "2.5%" # Mock for now
+            "churn_rate": "2.5%"
         }
     except Exception as e:
         logger.error(f"Failed to fetch stats: {e}")
@@ -89,7 +83,6 @@ async def get_stats(db: AsyncSession = Depends(get_db_session)):
 
 @router.get("/tariffs")
 async def list_tariffs(db: AsyncSession = Depends(get_db_session)):
-    """Returns list of all tariffs."""
     stmt = select(Tariff).order_by(Tariff.id)
     result = await db.execute(stmt)
     tariffs = result.scalars().all()
@@ -97,13 +90,10 @@ async def list_tariffs(db: AsyncSession = Depends(get_db_session)):
 
 @router.post("/tariffs")
 async def save_tariff(request: Request, db: AsyncSession = Depends(get_db_session)):
-    """Creates or updates a tariff."""
     data = await request.json()
     tariff_id = data.get("id")
-    
     try:
         if tariff_id:
-            # Update existing
             stmt = update(Tariff).where(Tariff.id == tariff_id).values(
                 name=data["name"],
                 description=data.get("description", ""),
@@ -116,7 +106,6 @@ async def save_tariff(request: Request, db: AsyncSession = Depends(get_db_sessio
             )
             await db.execute(stmt)
         else:
-            # Create new
             new_tariff = Tariff(
                 name=data["name"],
                 description=data.get("description", ""),
@@ -128,7 +117,6 @@ async def save_tariff(request: Request, db: AsyncSession = Depends(get_db_sessio
                 require_phone=bool(data.get("require_phone", False))
             )
             db.add(new_tariff)
-        
         await db.commit()
         return {"status": "ok"}
     except Exception as e:
@@ -138,7 +126,6 @@ async def save_tariff(request: Request, db: AsyncSession = Depends(get_db_sessio
 
 @router.delete("/tariffs/{tariff_id}")
 async def delete_tariff(tariff_id: int, db: AsyncSession = Depends(get_db_session)):
-    """Deletes a tariff."""
     try:
         await db.execute(delete(Tariff).where(Tariff.id == tariff_id))
         await db.commit()
@@ -150,18 +137,14 @@ async def delete_tariff(tariff_id: int, db: AsyncSession = Depends(get_db_sessio
 
 @router.get("/users")
 async def list_users(db: AsyncSession = Depends(get_db_session)):
-    """Returns users with their active subscriptions."""
     stmt = select(User).order_by(User.created_at.desc()).limit(100)
     result = await db.execute(stmt)
     users = result.scalars().all()
-    
     user_list = []
     for u in users:
-        # Simple join-like logic for TWA list
         sub_stmt = select(Subscription).where(Subscription.user_id == u.telegram_id, Subscription.is_active == True)
         sub_res = await db.execute(sub_stmt)
         active_sub = sub_res.scalar_one_or_none()
-        
         user_list.append({
             "telegram_id": u.telegram_id,
             "username": u.username or f"ID: {u.telegram_id}",
@@ -171,109 +154,98 @@ async def list_users(db: AsyncSession = Depends(get_db_session)):
         })
     return user_list
 
+@router.get("/settings")
+async def get_system_settings(db: AsyncSession = Depends(get_db_session)):
+    stmt = select(SystemSetting)
+    res = await db.execute(stmt)
+    settings_res = res.scalars().all()
+    data = {"payment_mode": "mock", "yookassa_shop_id": "", "yookassa_secret_key": ""}
+    for s in settings_res:
+        data[s.key] = s.value
+    return data
+
+@router.post("/settings")
+async def update_system_settings(request: Request, db: AsyncSession = Depends(get_db_session)):
+    data = await request.json()
+    try:
+        for key, value in data.items():
+            stmt = select(SystemSetting).where(SystemSetting.key == key)
+            res = await db.execute(stmt)
+            setting = res.scalar_one_or_none()
+            if setting:
+                setting.value = str(value)
+            else:
+                db.add(SystemSetting(key=key, value=str(value)))
+        await db.commit()
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Failed to update settings: {e}")
+        await db.rollback()
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
+
 from app.payments.base import MockProvider
 
 @router.post("/action")
 async def process_twa_action(request: Request, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db_session)):
-    """Processes generic actions from TWA (buy, export, etc.)."""
     try:
         data = await request.json()
         action = data.get("action")
         bot = request.app.state.bot
-        
-        if not bot:
-            return JSONResponse({"status": "error", "message": "Бот не запущен"}, status_code=500)
+        if not bot: return JSONResponse({"status": "error", "message": "Бот не запущен"}, status_code=500)
 
-        # Basic ID retrieval (in real app validate tg.initData)
-        # For simplicity, we assume data contains user_id or we get it from headers
-        # Here we'll try to extract from initData if possible, but for mock let's use a placeholder or data
         user_id = data.get("user_id") 
-        
         if action == "buy":
             tariff_id = data.get("tariff_id")
             email = data.get("email")
-            
-            # Fetch tariff
+            s_stmt = select(SystemSetting).where(SystemSetting.key == "payment_mode")
+            s_res = await db.execute(s_stmt)
+            s_mode = s_res.scalar_one_or_none()
+            mode = s_mode.value if s_mode else "mock"
+
             t_stmt = select(Tariff).where(Tariff.id == tariff_id)
             t_res = await db.execute(t_stmt)
             tariff = t_res.scalar_one_or_none()
-            
-            if not tariff:
-                return JSONResponse({"status": "error", "message": "Тариф не найден"}, status_code=404)
+            if not tariff: return JSONResponse({"status": "error", "message": "Тариф не найден"}, status_code=404)
 
-            # Create payment via MockProvider
+            if mode == "yookassa":
+                 return JSONResponse({"status": "error", "message": "YooKassa требует настройки API. Используйте Mock режим."}, status_code=400)
+            
             provider = MockProvider()
-            pay_res = await provider.create_payment(
-                amount=tariff.price,
-                description=f"Оплата тарифа: {tariff.name}",
-                metadata={"user_id": user_id, "tariff_id": tariff_id}
-            )
+            pay_res = await provider.create_payment(tariff.price, f"Оплата: {tariff.name}", {"user_id": user_id, "tariff_id": tariff_id})
             
             if pay_res.success:
-                # Save payment to DB
-                new_payment = Payment(
-                    user_id=user_id,
-                    amount=tariff.price,
-                    provider="mock",
-                    status="pending",
-                    transaction_id=pay_res.transaction_id
-                )
-                db.add(new_payment)
-                
-                # If user has email, update it
-                if email:
-                    await db.execute(update(User).where(User.telegram_id == user_id).values(email=email))
-                
+                db.add(Payment(user_id=user_id, amount=tariff.price, provider=mode, status="pending", transaction_id=pay_res.transaction_id))
+                if email: await db.execute(update(User).where(User.telegram_id == user_id).values(email=email))
                 await db.commit()
-                
-                # Send link to user via bot
-                await bot.send_message(
-                    user_id, 
-                    f"💳 <b>Оплата тарифа: {tariff.name}</b>\n\nСумма: {tariff.price} ₽\n\nДля оплаты перейдите по ссылке: {pay_res.payment_url}\n\n<i>(Это тестовая ссылка Mock-провайдера)</i>"
-                )
-                return JSONResponse({"status": "ok", "message": "Ссылка на оплату отправлена вам ботом."})
-            else:
-                return JSONResponse({"status": "error", "message": "Ошибка платежной системы"}, status_code=500)
+                await bot.send_message(user_id, f"💳 <b>Оплата: {tariff.name}</b>\n\nСумма: {tariff.price} ₽\n\nСсылка: {pay_res.payment_url}\n\n<i>Режим: {mode}</i>")
+                return JSONResponse({"status": "ok", "message": "Ссылка отправлена ботом в ЛС."})
+            return JSONResponse({"status": "error", "message": "Ошибка платежной системы"}, status_code=500)
 
-        # Admin ID for export/broadcast
         admin_id = settings.bot.admin_ids[0] if settings.bot.admin_ids else None
-
         if action == "export_csv":
-            stmt = select(User)
-            res = await db.execute(stmt)
+            res = await db.execute(select(User))
             users = res.scalars().all()
-            
             output = io.StringIO()
             writer = csv.writer(output)
-            writer.writerow(["Telegram ID", "Username", "First Name", "Last Name", "Email", "Phone", "Is Admin", "Created At"])
-            for u in users:
-                writer.writerow([u.telegram_id, u.username, u.first_name, u.last_name, u.email, u.phone, u.is_admin, u.created_at])
-            
-            csv_file = BufferedInputFile(output.getvalue().encode('utf-8'), filename=f"users_export_{datetime.now().strftime('%Y%m%d')}.csv")
-            await bot.send_document(admin_id, csv_file, caption="Ваша выгрузка пользователей готова!")
-            return JSONResponse({"status": "ok", "message": "Файл выгрузки отправлен ботом вам в ЛС."})
+            writer.writerow(["ID", "Username", "First", "Last", "Email", "Phone", "Admin", "Date"])
+            for u in users: writer.writerow([u.telegram_id, u.username, u.first_name, u.last_name, u.email, u.phone, u.is_admin, u.created_at])
+            csv_file = BufferedInputFile(output.getvalue().encode('utf-8'), filename="users.csv")
+            await bot.send_document(admin_id, csv_file, caption="Экспорт пользователей")
+            return JSONResponse({"status": "ok", "message": "Файл отправлен в ЛС."})
 
         if action == "broadcast":
             text = data.get("text")
             target = data.get("target", "all")
-            if not text:
-                return JSONResponse({"status": "error", "message": "Текст сообщения пуст"}, status_code=400)
-            
-            # Identify target user IDs
-            if target == "all":
-                stmt = select(User.telegram_id)
-            elif target == "active":
-                stmt = select(Subscription.user_id).where(Subscription.is_active == True).distinct()
-            elif target == "expired":
-                stmt = select(User.telegram_id).where(~User.telegram_id.in_(select(Subscription.user_id).where(Subscription.is_active == True)))
-            
+            if not text: return JSONResponse({"status": "error", "message": "Текст пуст"}, status_code=400)
+            if target == "all": stmt = select(User.telegram_id)
+            elif target == "active": stmt = select(Subscription.user_id).where(Subscription.is_active == True).distinct()
+            elif target == "expired": stmt = select(User.telegram_id).where(~User.telegram_id.in_(select(Subscription.user_id).where(Subscription.is_active == True)))
             res = await db.execute(stmt)
             user_ids = res.scalars().all()
-            
             background_tasks.add_task(run_broadcast_task, bot, user_ids, text)
-            return JSONResponse({"status": "ok", "message": f"Рассылка запущена для {len(user_ids)} пользователей."})
+            return JSONResponse({"status": "ok", "message": f"Рассылка запущена ({len(user_ids)} чел)."})
             
-        return JSONResponse({"status": "ok", "message": f"Действие {action} обработано"})
+        return JSONResponse({"status": "ok", "message": "Действие обработано"})
     except Exception as e:
-        logger.error(f"Error processing TWA action: {e}")
+        logger.error(f"Error: {e}")
         return JSONResponse({"status": "error", "message": str(e)}, status_code=400)

@@ -70,3 +70,11 @@ class Payment(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="payments")
+
+
+class SystemSetting(Base):
+    __tablename__ = "system_settings"
+
+    key = Column(String(255), primary_key=True)
+    value = Column(Text, nullable=True)
+    description = Column(String(255), nullable=True)

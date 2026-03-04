@@ -80,10 +80,11 @@
     <div id="loading-overlay">⌛ Загрузка...</div>
 
     <div class="nav-buttons">
-        <button class="nav-btn active" onclick="switchSection('dashboard')">Дашборд</button>
-        <button class="nav-btn" onclick="switchSection('tariffs')">Тарифы</button>
-        <button class="nav-btn" onclick="switchSection('users')">Пользователи</button>
-        <button class="nav-btn" onclick="switchSection('broadcast')">Рассылка</button>
+        <button class="nav-btn active" onclick="switchSection('dashboard', this)">Дашборд</button>
+        <button class="nav-btn" onclick="switchSection('tariffs', this)">Тарифы</button>
+        <button class="nav-btn" onclick="switchSection('users', this)">Пользователи</button>
+        <button class="nav-btn" onclick="switchSection('broadcast', this)">Рассылка</button>
+        <button class="nav-btn" onclick="switchSection('settings', this)">Настройки</button>
     </div>
 
     <!-- DASHBOARD -->
@@ -105,8 +106,6 @@
             <button class="nav-btn active small-btn" onclick="openTariffForm()">+ Добавить</button>
         </div>
         <div id="tariffs-list"></div>
-        
-        <!-- Tariff Form (hidden by default) -->
         <div id="tariff-form" style="display: none; border-top: 1px solid #ccc; padding-top: 10px; margin-top: 10px;">
             <h3 id="tariff-form-title">Новый тариф</h3>
             <input type="hidden" id="f-id">
@@ -147,6 +146,23 @@
         <button class="btn" onclick="runAction('broadcast', {text: document.getElementById('b-text').value, target: document.getElementById('b-target').value})">🚀 Запустить рассылку</button>
     </div>
 
+    <!-- SETTINGS -->
+    <div id="section-settings" class="section">
+        <h2>Настройки системы</h2>
+        <div class="form-group">
+            <label>Режим платежей</label>
+            <select id="s-payment-mode">
+                <option value="mock">Тестовый (Mock)</option>
+                <option value="yookassa">ЮKassa (Production)</option>
+            </select>
+        </div>
+        <div id="yookassa-fields">
+            <div class="form-group"><label>YooKassa Shop ID</label><input type="text" id="s-yoo-shop-id"></div>
+            <div class="form-group"><label>YooKassa Secret Key</label><input type="password" id="s-yoo-key"></div>
+        </div>
+        <button class="btn" onclick="saveSettings()">Сохранить настройки</button>
+    </div>
+
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
@@ -155,16 +171,17 @@
             document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
         }
 
-        async function switchSection(sectionId) {
+        async function switchSection(sectionId, btn) {
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
             
             document.getElementById(`section-${sectionId}`).classList.add('active');
-            event.target.classList.add('active');
+            btn.classList.add('active');
             
             if (sectionId === 'dashboard') loadStats();
             if (sectionId === 'tariffs') loadTariffs();
             if (sectionId === 'users') loadUsers();
+            if (sectionId === 'settings') loadSettings();
         }
 
         async function loadStats() {
@@ -176,7 +193,7 @@
                 document.getElementById('stat-new-users').innerText = data.new_users;
                 document.getElementById('stat-active').innerText = data.active_subscriptions;
                 document.getElementById('stat-total').innerText = data.total_users;
-            } catch (e) { tg.showAlert("Ошибка загрузки статистики"); }
+            } catch (e) { tg.showAlert("Ошибка статистики"); }
             showLoading(false);
         }
 
@@ -190,19 +207,12 @@
                 tariffs.forEach(t => {
                     const item = document.createElement('div');
                     item.className = 'list-item';
-                    item.innerHTML = `
-                        <div class="list-item-info">
-                            <div class="list-item-title">${t.name}</div>
-                            <div class="list-item-subtitle">${t.price} ₽ | ${t.duration_days || '∞'} дн.</div>
-                        </div>
-                        <div class="list-item-actions">
-                            <button class="nav-btn small-btn" onclick='editTariff(${JSON.stringify(t)})'>🖉</button>
-                            <button class="nav-btn small-btn btn-danger" onclick="deleteTariff(${t.id})">✕</button>
-                        </div>
-                    `;
+                    item.innerHTML = `<div class="list-item-info"><div class="list-item-title">${t.name}</div><div class="list-item-subtitle">${t.price} ₽</div></div>
+                        <div class="list-item-actions"><button class="nav-btn small-btn" onclick='editTariff(${JSON.stringify(t)})'>🖉</button>
+                        <button class="nav-btn small-btn btn-danger" onclick="deleteTariff(${t.id})">✕</button></div>`;
                     container.appendChild(item);
                 });
-            } catch (e) { tg.showAlert("Ошибка загрузки тарифов"); }
+            } catch (e) { tg.showAlert("Ошибка тарифов"); }
             showLoading(false);
         }
 
@@ -216,48 +226,51 @@
                 users.forEach(u => {
                     const item = document.createElement('div');
                     item.className = 'list-item';
-                    item.innerHTML = `
-                        <div class="list-item-info">
-                            <div class="list-item-title">${u.username} ${u.is_admin ? '⭐' : ''}</div>
-                            <div class="list-item-subtitle">${u.full_name} | ${u.has_active_sub ? '✅ Активен' : '❌ Нет подписки'}</div>
-                        </div>
-                    `;
+                    item.innerHTML = `<div class="list-item-info"><div class="list-item-title">${u.username}</div><div class="list-item-subtitle">${u.has_active_sub ? '✅ Активен' : '❌ Нет'}</div></div>`;
                     container.appendChild(item);
                 });
-            } catch (e) { tg.showAlert("Ошибка загрузки пользователей"); }
+            } catch (e) { tg.showAlert("Ошибка пользователей"); }
+            showLoading(false);
+        }
+
+        async function loadSettings() {
+            showLoading(true);
+            try {
+                const res = await fetch('/twa/settings');
+                const data = await res.json();
+                document.getElementById('s-payment-mode').value = data.payment_mode || 'mock';
+                document.getElementById('s-yoo-shop-id').value = data.yookassa_shop_id || '';
+                document.getElementById('s-yoo-key').value = data.yookassa_secret_key || '';
+            } catch (e) { tg.showAlert("Ошибка настроек"); }
+            showLoading(false);
+        }
+
+        async function saveSettings() {
+            const data = {
+                payment_mode: document.getElementById('s-payment-mode').value,
+                yookassa_shop_id: document.getElementById('s-yoo-shop-id').value,
+                yookassa_secret_key: document.getElementById('s-yoo-key').value
+            };
+            showLoading(true);
+            try {
+                const res = await fetch('/twa/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if ((await res.json()).status === 'ok') tg.showAlert("Настройки сохранены!");
+            } catch (e) { tg.showAlert("Ошибка сохранения"); }
             showLoading(false);
         }
 
         function openTariffForm() {
             document.getElementById('tariff-form').style.display = 'block';
-            document.getElementById('f-id').value = "";
-            document.getElementById('f-name').value = "";
-            document.getElementById('f-price').value = "";
-            document.getElementById('f-days').value = "";
-            document.getElementById('f-desc').value = "";
-            document.getElementById('f-trial').checked = false;
-            document.getElementById('f-email').checked = false;
-            document.getElementById('tariff-form-title').innerText = "Новый тариф";
             document.getElementById('tariffs-list').style.display = 'none';
         }
-
-        function editTariff(t) {
-            openTariffForm();
-            document.getElementById('f-id').value = t.id;
-            document.getElementById('f-name').value = t.name;
-            document.getElementById('f-price').value = t.price;
-            document.getElementById('f-days').value = t.duration_days;
-            document.getElementById('f-desc').value = t.description;
-            document.getElementById('f-trial').checked = t.is_trial;
-            document.getElementById('f-email').checked = t.require_email;
-            document.getElementById('tariff-form-title').innerText = "Правка тарифа";
-        }
-
         function closeTariffForm() {
             document.getElementById('tariff-form').style.display = 'none';
             document.getElementById('tariffs-list').style.display = 'block';
         }
-
         async function saveTariff() {
             const data = {
                 id: document.getElementById('f-id').value,
@@ -268,7 +281,6 @@
                 is_trial: document.getElementById('f-trial').checked,
                 require_email: document.getElementById('f-email').checked
             };
-            
             showLoading(true);
             try {
                 const res = await fetch('/twa/tariffs', {
@@ -276,27 +288,10 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
-                if ((await res.json()).status === 'ok') {
-                    closeTariffForm();
-                    loadTariffs();
-                }
-            } catch (e) { tg.showAlert("Ошибка сохранения"); }
+                if ((await res.json()).status === 'ok') { closeTariffForm(); loadTariffs(); }
+            } catch (e) { tg.showAlert("Ошибка"); }
             showLoading(false);
         }
-
-        async function deleteTariff(id) {
-            tg.showConfirm("Удалить этот тариф?", async (yes) => {
-                if (yes) {
-                    showLoading(true);
-                    try {
-                        await fetch(`/twa/tariffs/${id}`, { method: 'DELETE' });
-                        loadTariffs();
-                    } catch (e) { tg.showAlert("Ошибка удаления"); }
-                    showLoading(false);
-                }
-            });
-        }
-
         async function runAction(action, extraData = {}) {
             showLoading(true);
             try {
@@ -307,11 +302,10 @@
                 });
                 const result = await res.json();
                 tg.showAlert(result.message);
-            } catch (e) { tg.showAlert("Ошибка выполнения"); }
+            } catch (e) { tg.showAlert("Ошибка"); }
             showLoading(false);
         }
 
-        // Init load
         loadStats();
     </script>
 </body>
