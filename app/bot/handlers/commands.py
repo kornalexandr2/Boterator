@@ -30,15 +30,18 @@ async def start_cmd(message: types.Message, session: AsyncSession | None):
              logger.info(f"Registered new user: {message.from_user.id}")
 
     builder = InlineKeyboardBuilder()
-    builder.button(
-         text="Открыть витрину тарифов", 
-         web_app=types.WebAppInfo(url=f"{settings.app.base_url.rstrip('/')}/twa/store")
-    )
     
-    if message.from_user.id in settings.bot.admin_ids:
+    is_admin = message.from_user.id in settings.bot.admin_ids
+
+    if is_admin:
          builder.button(
              text="⚙️ CRM Администратора",
              web_app=types.WebAppInfo(url=f"{settings.app.base_url.rstrip('/')}/twa/admin")
+         )
+    else:
+         builder.button(
+             text="Открыть витрину тарифов", 
+             web_app=types.WebAppInfo(url=f"{settings.app.base_url.rstrip('/')}/twa/store")
          )
     
     builder.adjust(1)
