@@ -38,6 +38,8 @@
         .form-group { margin-bottom: 12px; }
         label { display: block; font-size: 12px; color: var(--hint); margin-bottom: 4px; }
         input, textarea, select { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; background: var(--bg); color: var(--text); box-sizing: border-box; }
+        .checkbox-group { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+        .checkbox-group input { width: auto; }
         .action-btn { background: var(--bg); border: 1px solid var(--hint); color: var(--text); padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; }
         .action-btn.danger { border-color: var(--danger); color: var(--danger); }
         #loading-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.1); display: none; align-items: center; justify-content: center; z-index: 1000; font-size: 30px; }
@@ -67,7 +69,6 @@
 
     <div id="section-resources" class="section">
         <h2>Управляемые ресурсы</h2>
-        <p class="list-item-subtitle" style="margin-bottom:15px;">Добавьте бота в группу или канал как администратора, чтобы он появился в этом списке.</p>
         <div id="resources-list"></div>
     </div>
 
@@ -77,19 +78,24 @@
         </div>
         <div id="tariffs-list"></div>
         <div id="tariff-form" style="display:none; border-top: 1px solid #ccc; padding-top: 10px;">
+            <h3 id="tariff-form-title">Новый тариф</h3>
             <input type="hidden" id="f-id">
             <div class="form-group"><label>Название</label><input type="text" id="f-name"></div>
-            <div class="form-group"><label>Цена</label><input type="number" id="f-price"></div>
-            <div class="form-group"><label>Дней</label><input type="number" id="f-days"></div>
-            <button class="btn" onclick="saveTariff()">Сохранить</button>
-            <button class="btn" style="background:var(--hint)" onclick="closeTariffForm()">Отмена</button>
+            <div class="form-group"><label>Цена (руб)</label><input type="number" id="f-price"></div>
+            <div class="form-group"><label>Длительность (дней)</label><input type="number" id="f-days"></div>
+            <div class="form-group"><label>Описание</label><textarea id="f-desc"></textarea></div>
+            <div class="checkbox-group"><input type="checkbox" id="f-trial"> <label>Пробный (Trial)</label></div>
+            <div class="checkbox-group"><input type="checkbox" id="f-hidden"> <label>Скрыть (Hidden)</label></div>
+            <div class="checkbox-group"><input type="checkbox" id="f-email"> <label>Требовать Email</label></div>
+            <div class="checkbox-group"><input type="checkbox" id="f-phone"> <label>Требовать Телефон</label></div>
+            <div style="display: flex; gap: 8px; margin-top: 15px;">
+                <button class="btn" onclick="saveTariff()">Сохранить</button>
+                <button class="btn" style="background:var(--hint)" onclick="closeTariffForm()">Отмена</button>
+            </div>
         </div>
     </div>
 
-    <div id="section-users" class="section">
-        <h2>Пользователи</h2>
-        <div id="users-list"></div>
-    </div>
+    <div id="section-users" class="section"><h2>Пользователи</h2><div id="users-list"></div></div>
 
     <div id="section-broadcast" class="section">
         <h2>Рассылка</h2>
@@ -160,22 +166,11 @@
                     const item = document.createElement('div');
                     item.className = 'list-item';
                     let statusHtml = c.permissions_ok 
-                        ? `<div class="alert alert-success">✅ Бот имеет все права для управления участниками.</div>`
-                        : `<div class="alert alert-danger">
-                             ⚠️ <b>Внимание!</b> Недостаточно прав для управления.<br>
-                             Нужно включить: <b>${c.missing_permissions}</b>.
-                           </div>`;
-                    
-                    item.innerHTML = `
-                        <div class="list-header">
-                            <div class="list-item-title">${c.title}</div>
-                            <div class="list-item-subtitle">ID: ${c.chat_id}</div>
-                        </div>
-                        ${statusHtml}
-                    `;
+                        ? `<div class="alert alert-success">✅ Все права в порядке.</div>`
+                        : `<div class="alert alert-danger">⚠️ Нужно: ${c.missing_permissions}</div>`;
+                    item.innerHTML = `<div class="list-header"><div class="list-item-title">${c.title}</div></div>${statusHtml}`;
                     cont.appendChild(item);
                 });
-                if(chats.length === 0) cont.innerHTML = "<p style='text-align:center; color:var(--hint);'>Список ресурсов пуст.</p>";
             } catch(e) {}
             showLoading(false);
         }
@@ -188,11 +183,69 @@
                 const ts = await res.json();
                 ts.forEach(t => {
                     const item = document.createElement('div'); item.className = 'list-item';
-                    item.innerHTML = `<div class="list-header"><div><b>${t.name}</b><br>${t.price} ₽</div><button class="action-btn danger" onclick="deleteTariff(${t.id})">✕</button></div>`;
+                    item.innerHTML = `
+                        <div class="list-header">
+                            <div><b>${t.name}</b> ${t.is_hidden?'(Скрыт)':''}<br>${t.price} ₽ | ${t.duration_days} дн.</div>
+                            <div style="display:flex; gap:5px;">
+                                <button class="action-btn" onclick='editTariff(${JSON.stringify(t)})'>🖉</button>
+                                <button class="action-btn danger" onclick="deleteTariff(${t.id})">✕</button>
+                            </div>
+                        </div>
+                    `;
                     cont.appendChild(item);
                 });
             } catch(e) {}
             showLoading(false);
+        }
+
+        function openTariffForm() {
+            document.getElementById('tariff-form').style.display = 'block';
+            document.getElementById('tariffs-list').style.display = 'none';
+            document.getElementById('f-id').value = "";
+            document.getElementById('f-name').value = "";
+            document.getElementById('f-price').value = "";
+            document.getElementById('f-days').value = "";
+            document.getElementById('f-desc').value = "";
+            document.getElementById('f-trial').checked = false;
+            document.getElementById('f-hidden').checked = false;
+            document.getElementById('f-email').checked = false;
+            document.getElementById('f-phone').checked = false;
+        }
+
+        function editTariff(t) {
+            openTariffForm();
+            document.getElementById('tariff-form-title').innerText = "Правка тарифа";
+            document.getElementById('f-id').value = t.id;
+            document.getElementById('f-name').value = t.name;
+            document.getElementById('f-price').value = t.price;
+            document.getElementById('f-days').value = t.duration_days;
+            document.getElementById('f-desc').value = t.description || "";
+            document.getElementById('f-trial').checked = t.is_trial;
+            document.getElementById('f-hidden').checked = t.is_hidden;
+            document.getElementById('f-email').checked = t.require_email;
+            document.getElementById('f-phone').checked = t.require_phone;
+        }
+
+        function closeTariffForm() {
+            document.getElementById('tariff-form').style.display = 'none';
+            document.getElementById('tariffs-list').style.display = 'block';
+        }
+
+        async function saveTariff() {
+            const data = {
+                id: document.getElementById('f-id').value,
+                name: document.getElementById('f-name').value,
+                price: document.getElementById('f-price').value,
+                duration_days: document.getElementById('f-days').value,
+                description: document.getElementById('f-desc').value,
+                is_trial: document.getElementById('f-trial').checked,
+                is_hidden: document.getElementById('f-hidden').checked,
+                require_email: document.getElementById('f-email').checked,
+                require_phone: document.getElementById('f-phone').checked
+            };
+            showLoading(true);
+            await fetch('/twa/tariffs', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+            closeTariffForm(); loadTariffs(); showLoading(false);
         }
 
         async function loadUsers() {
@@ -203,21 +256,12 @@
                 const us = await res.json();
                 us.forEach(u => {
                     const item = document.createElement('div'); 
-                    item.className = 'list-item';
-                    if(u.is_admin) item.style.borderLeft = '4px solid var(--button)';
-                    
+                    item.className = 'list-item' + (u.is_admin ? ' admin' : '');
                     let actions = `<button class="action-btn danger" onclick="kickUser(${u.telegram_id}, '${u.username}')">KICK</button>`;
                     if (u.is_super) actions = `<span style="font-size:10px; color:var(--hint)">SUPER ADMIN</span>`;
                     else if (u.is_admin) actions += `<button class="action-btn" onclick="runAction('demote_admin', {target_id: ${u.telegram_id}})">СНЯТЬ АДМИНА</button>`;
                     else actions += `<button class="action-btn" onclick="runAction('promote_admin', {target_id: ${u.telegram_id}})">СДЕЛАТЬ АДМИНОМ</button>`;
-
-                    item.innerHTML = `
-                        <div class="list-header">
-                            <div class="list-item-title">${u.is_admin?'👑 ':''}${u.username}</div>
-                            <div>${u.has_active_sub?'✅':'❌'}</div>
-                        </div>
-                        <div style="display:flex; gap:8px;">${actions}</div>
-                    `;
+                    item.innerHTML = `<div class="list-header"><div class="list-item-title">${u.is_admin?'👑 ':''}${u.username}</div><div>${u.has_active_sub?'✅':'❌'}</div></div><div style="display:flex; gap:8px;">${actions}</div>`;
                     cont.appendChild(item);
                 });
             } catch(e) {}
@@ -225,8 +269,8 @@
         }
 
         function kickUser(id, username) {
-            const reason = prompt(`Выгнать @${username}? Причина:`, "Нарушение правил");
-            if (reason !== null) runAction('kick_user', {target_id: id, reason: reason});
+            const r = prompt(`Выгнать @${username}? Причина:`, "Нарушение правил");
+            if (r !== null) runAction('kick_user', {target_id: id, reason: r});
         }
 
         async function loadSettings() {
@@ -247,15 +291,6 @@
             await fetch('/twa/settings', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
             tg.showAlert("Сохранено!");
             showLoading(false);
-        }
-
-        function openTariffForm() { document.getElementById('tariff-form').style.display='block'; }
-        function closeTariffForm() { document.getElementById('tariff-form').style.display='none'; }
-        async function saveTariff() {
-            const data = { name: document.getElementById('f-name').value, price: document.getElementById('f-price').value, duration_days: document.getElementById('f-days').value };
-            showLoading(true);
-            await fetch('/twa/tariffs', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
-            closeTariffForm(); loadTariffs(); showLoading(false);
         }
 
         async function deleteTariff(id) {
