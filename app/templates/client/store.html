@@ -6,115 +6,158 @@
     <title>Витрина тарифов</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
+        :root {
+            --bg: var(--tg-theme-bg-color, #ffffff);
+            --text: var(--tg-theme-text-color, #000000);
+            --hint: var(--tg-theme-hint-color, #888);
+            --link: var(--tg-theme-link-color, #2481cc);
+            --button: var(--tg-theme-button-color, #2481cc);
+            --button-text: var(--tg-theme-button-text-color, #ffffff);
+            --secondary-bg: var(--tg-theme-secondary-bg-color, #f4f4f5);
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--tg-theme-bg-color, #ffffff);
-            color: var(--tg-theme-text-color, #000000);
+            background-color: var(--bg);
+            color: var(--text);
             margin: 0;
             padding: 16px;
         }
+        .header { margin-bottom: 20px; }
+        .header h2 { margin: 0; font-size: 22px; }
+        .header p { margin: 4px 0 0; color: var(--hint); font-size: 14px; }
+
         .tariff-card {
-            border: 1px solid var(--tg-theme-hint-color, #ccc);
-            border-radius: 8px;
+            border-radius: 12px;
             padding: 16px;
             margin-bottom: 16px;
-            background-color: var(--tg-theme-secondary-bg-color, #f4f4f5);
+            background-color: var(--secondary-bg);
+            border: 1px solid rgba(0,0,0,0.05);
+            position: relative;
         }
-        .tariff-name {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 8px;
+        .trial-badge {
+            position: absolute; top: 12px; right: 12px;
+            background: #4caf50; color: #fff; font-size: 10px;
+            padding: 2px 6px; border-radius: 4px; font-weight: bold;
         }
-        .tariff-price {
-            font-size: 16px;
-            color: var(--tg-theme-link-color, #2481cc);
-            margin-bottom: 8px;
+        .tariff-name { font-size: 18px; font-weight: bold; margin-bottom: 4px; }
+        .tariff-desc { font-size: 13px; color: var(--hint); margin-bottom: 12px; line-height: 1.4; }
+        .tariff-price { font-size: 20px; font-weight: 800; color: var(--link); margin-bottom: 12px; }
+        
+        .input-group { margin-bottom: 12px; }
+        .input-group label { display: block; font-size: 11px; color: var(--hint); margin-bottom: 4px; padding-left: 4px; }
+        .input-field {
+            width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ccc;
+            background: var(--bg); color: var(--text); box-sizing: border-box; font-size: 14px;
         }
         .btn {
-            display: block;
-            width: 100%;
-            padding: 12px;
-            text-align: center;
-            background-color: var(--tg-theme-button-color, #2481cc);
-            color: var(--tg-theme-button-text-color, #ffffff);
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            cursor: pointer;
-            margin-top: 10px;
+            display: block; width: 100%; padding: 14px; text-align: center;
+            background-color: var(--button); color: var(--button-text);
+            border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer;
         }
-        .input-field {
-            width: 100%;
-            padding: 10px;
-            margin-top: 8px;
-            border: 1px solid var(--tg-theme-hint-color, #ccc);
-            border-radius: 4px;
-            box-sizing: border-box;
-            background-color: var(--tg-theme-bg-color, #fff);
-            color: var(--tg-theme-text-color, #000);
-        }
+        #empty-state { text-align: center; padding: 40px 20px; color: var(--hint); display: none; }
+        #loading { text-align: center; padding: 20px; }
     </style>
 </head>
 <body>
-    <h2>Доступные подписки</h2>
-    <div id="tariffs-container">
-        <!-- Tariffs will be loaded here -->
+    <div class="header">
+        <h2>Выберите тариф</h2>
+        <p>Для доступа к закрытому контенту</p>
     </div>
+
+    <div id="loading">⌛ Загрузка тарифов...</div>
+    <div id="empty-state">Пока нет доступных тарифов.</div>
+    <div id="tariffs-container"></div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
 
         async function loadTariffs() {
+            const container = document.getElementById('tariffs-container');
+            const loading = document.getElementById('loading');
+            const empty = document.getElementById('empty-state');
+            
             try {
-                // In a real app, this would be an API call fetching from DB
-                // const response = await fetch('/api/tariffs');
-                // const tariffs = await response.json();
+                const response = await fetch('/twa/tariffs');
+                const tariffs = await response.json();
                 
-                // Mock data for initial rendering
-                const tariffs = [
-                    { id: 1, name: "Базовый (Месяц)", price: 500, require_email: false },
-                    { id: 2, name: "PRO (Год)", price: 5000, require_email: true },
-                    { id: 3, name: "Trial (3 дня)", price: 0, require_email: false, is_trial: true }
-                ];
+                loading.style.display = 'none';
                 
-                const container = document.getElementById('tariffs-container');
-                tariffs.forEach(t => {
+                // Filter visible tariffs
+                const activeTariffs = tariffs.filter(t => !t.is_hidden);
+                
+                if (activeTariffs.length === 0) {
+                    empty.style.display = 'block';
+                    return;
+                }
+
+                activeTariffs.forEach(t => {
                     const card = document.createElement('div');
                     card.className = 'tariff-card';
-                    let html = `<div class="tariff-name">${t.name}</div>
-                                <div class="tariff-price">${t.price > 0 ? t.price + ' руб.' : 'Бесплатно'}</div>`;
+                    
+                    let html = '';
+                    if (t.is_trial) html += `<div class="trial-badge">TRIAL</div>`;
+                    
+                    html += `<div class="tariff-name">${t.name}</div>`;
+                    if (t.description) html += `<div class="tariff-desc">${t.description}</div>`;
+                    html += `<div class="tariff-price">${t.price > 0 ? t.price.toLocaleString() + ' ₽' : 'Бесплатно'}</div>`;
                     
                     if (t.require_email) {
-                        html += `<input type="email" id="email_${t.id}" class="input-field" placeholder="Ваш Email (Обязательно)">`;
+                        html += `<div class="input-group">
+                                    <label>EMAIL ДЛЯ ОТПРАВКИ ЧЕКА</label>
+                                    <input type="email" id="email_${t.id}" class="input-field" placeholder="example@mail.ru">
+                                 </div>`;
                     }
                     
-                    html += `<button class="btn" onclick="buyTariff(${t.id}, ${t.require_email})">Оформить</button>`;
+                    if (t.require_phone) {
+                        html += `<div class="input-group">
+                                    <label>НОМЕР ТЕЛЕФОНА</label>
+                                    <input type="tel" id="phone_${t.id}" class="input-field" placeholder="+7 (___) ___-__-__">
+                                 </div>`;
+                    }
+                    
+                    html += `<button class="btn" onclick="buyTariff(${t.id}, ${t.require_email}, ${t.require_phone})">
+                                ${t.price > 0 ? 'Оформить подписку' : 'Попробовать бесплатно'}
+                             </button>`;
+                    
                     card.innerHTML = html;
                     container.appendChild(card);
                 });
             } catch (e) {
-                console.error("Failed to load tariffs", e);
+                loading.innerText = "❌ Ошибка загрузки. Попробуйте позже.";
+                console.error(e);
             }
         }
 
-        async function buyTariff(id, requireEmail) {
-            let data = { 
-                tariff_id: id, 
+        async function buyTariff(id, requireEmail, requirePhone) {
+            const data = { 
                 action: "buy",
+                tariff_id: id,
                 user_id: tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : null
             };
+
             if (requireEmail) {
-                const emailInput = document.getElementById(`email_${id}`);
-                const email = emailInput ? emailInput.value : '';
-                if (!email) {
-                    tg.showAlert("Пожалуйста, введите Email");
+                const email = document.getElementById(`email_${id}`).value;
+                if (!email || !email.includes('@')) {
+                    tg.showAlert("Пожалуйста, введите корректный Email");
                     return;
                 }
                 data.email = email;
             }
+
+            if (requirePhone) {
+                const phone = document.getElementById(`phone_${id}`).value;
+                if (!phone || phone.length < 10) {
+                    tg.showAlert("Пожалуйста, введите номер телефона");
+                    return;
+                }
+                data.phone = phone;
+            }
             
+            tg.MainButton.text = "ОФОРМЛЕНИЕ...";
+            tg.MainButton.show();
             tg.MainButton.showProgress();
+
             try {
                 const response = await fetch('/twa/action', {
                     method: 'POST',
@@ -127,15 +170,15 @@
                 
                 const result = await response.json();
                 if (result.status === 'ok') {
-                    tg.showAlert("Запрос отправлен! Бот пришлет вам инструкции по оплате.");
+                    tg.showAlert("Запрос принят! Ссылка на оплату отправлена вам в личные сообщения ботом.");
                     tg.close();
                 } else {
                     tg.showAlert("Ошибка: " + result.message);
                 }
             } catch (e) {
-                tg.showAlert("Сбой при отправке запроса");
+                tg.showAlert("Произошел сбой при связи с сервером.");
             } finally {
-                tg.MainButton.hideProgress();
+                tg.MainButton.hide();
             }
         }
 
