@@ -15,10 +15,11 @@ echo "Начинаем обновление Boterator..."
 PROJECT_DIR="/opt/boterator"
 cd "$PROJECT_DIR"
 
-# Git pull
+# Git update
 echo "Загрузка обновлений из репозитория..."
-# Используем master, так как это основная ветка проекта
-git pull origin master
+# Принудительно обновляем код, игнорируя локальные изменения на сервере
+git fetch origin master
+git reset --hard origin/master
 
 # Update dependencies
 echo "Обновление зависимостей..."
