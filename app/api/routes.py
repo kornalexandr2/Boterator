@@ -40,7 +40,7 @@ async def get_admin_crm(request: Request):
 
 @router.get("/managed-chats")
 async def list_managed_chats(db: AsyncSession = Depends(get_db_session)):
-    stmt = select(ManagedChat).where(ManagedChat.is_active == True)
+    stmt = select(ManagedChat) # Show all known chats
     res = await db.execute(stmt)
     return res.scalars().all()
 
@@ -113,6 +113,36 @@ async def process_twa_action(request: Request, background_tasks: BackgroundTasks
         
         user_id = data.get("user_id")
         
+        if action == "add_resource":
+            chat_id = data.get("chat_id")
+            try:
+                chat_id = int(chat_id)
+                chat = await bot.get_chat(chat_id)
+                member = await bot.get_chat_member(chat_id, (await bot.get_me()).id)
+                from aiogram.enums import ChatMemberStatus
+                if member.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR]:
+                    return JSONResponse({"status": "error", "message": "Бот должен быть администратором в этой группе!"})
+                
+                missing = check_bot_permissions(member)
+                invite_link = None
+                if not missing:
+                    link_obj = await bot.create_chat_invite_link(chat_id, name="Boterator Manual Add")
+                    invite_link = link_obj.invite_link
+
+                stmt = select(ManagedChat).where(ManagedChat.chat_id == chat_id)
+                existing = (await db.execute(stmt)).scalar_one_or_none()
+                if existing:
+                    existing.title = chat.title; existing.is_active = True
+                    existing.permissions_ok = len(missing) == 0
+                    existing.missing_permissions = ", ".join(missing) if missing else None
+                    if invite_link: existing.invite_link = invite_link
+                else:
+                    db.add(ManagedChat(chat_id=chat_id, title=chat.title, is_active=True, permissions_ok=len(missing)==0, missing_permissions=", ".join(missing) if missing else None, invite_link=invite_link))
+                await db.commit()
+                return {"status": "ok", "message": f"Ресурс '{chat.title}' добавлен!"}
+            except Exception as e:
+                return JSONResponse({"status": "error", "message": f"Ошибка: {str(e)}. Убедитесь, что ID верный и бот в группе."})
+
         if action == "sync_resources":
             chats = (await db.execute(select(ManagedChat))).scalars().all()
             sync_count = 0
@@ -121,17 +151,15 @@ async def process_twa_action(request: Request, background_tasks: BackgroundTasks
                     member = await bot.get_chat_member(c.chat_id, (await bot.get_me()).id)
                     from aiogram.enums import ChatMemberStatus
                     if member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR]:
-                        from app.bot.handlers.admin_events import check_bot_permissions
                         missing = check_bot_permissions(member)
                         c.permissions_ok = len(missing) == 0
                         c.missing_permissions = ", ".join(missing) if missing else None
                         c.is_active = True
                         sync_count += 1
-                    else:
-                        c.is_active = False
+                    else: c.is_active = False
                 except Exception: c.is_active = False
             await db.commit()
-            return JSONResponse({"status": "ok", "message": f"Обновлено ресурсов: {sync_count}. Если группы нет в списке — удалите и добавьте бота заново."})
+            return {"status": "ok", "message": f"Обновлено ресурсов: {sync_count}"}
 
         if action == "buy":
             tid = data.get("tariff_id")
@@ -145,7 +173,7 @@ async def process_twa_action(request: Request, background_tasks: BackgroundTasks
                 await db.commit()
                 links = "\n".join([f"🔹 <a href='{c.invite_link}'>{c.title}</a>" for c in (await db.execute(select(ManagedChat).where(ManagedChat.is_active == True))).scalars().all() if c.invite_link])
                 await bot.send_message(user_id, f"✅ <b>Триал активирован!</b>\nДо: {end.strftime('%d.%m.%Y')}\n\n<b>Ссылки:</b>\n{links}")
-                return JSONResponse({"status": "ok", "message": "Активировано!"})
+                return {"status": "ok", "message": "Активировано!"}
             s_dict = {s.key: s.value for s in (await db.execute(select(SystemSetting))).scalars().all()}
             mode = s_dict.get("payment_mode", "mock")
             provider = YooMoneyProvider(receiver=s_dict.get("yoomoney_receiver", "")) if mode == "yoomoney" else MockProvider()
@@ -154,7 +182,7 @@ async def process_twa_action(request: Request, background_tasks: BackgroundTasks
                 db.add(Payment(user_id=user_id, amount=tariff.price, provider=mode, status="pending", transaction_id=pay_res.transaction_id))
                 await db.commit()
                 await bot.send_message(user_id, f"💳 <b>Оплата: {tariff.name}</b>\nСумма: {tariff.price} ₽\nСсылка: {pay_res.payment_url}")
-                return JSONResponse({"status": "ok", "message": "Ссылка в ЛС!"})
+                return {"status": "ok", "message": "Ссылка в ЛС!"}
             return JSONResponse({"status": "error", "message": "Ошибка оплаты"}, status_code=500)
 
         if action == "promote_admin":

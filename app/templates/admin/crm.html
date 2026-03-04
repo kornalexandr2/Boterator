@@ -66,17 +66,19 @@
 
     <div id="section-resources" class="section">
         <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h2>Управляемые ресурсы</h2>
+            <h2>Ресурсы</h2>
             <button class="nav-btn active" onclick="runAction('sync_resources')">Обновить 🔄</button>
         </div>
-        <div id="resources-list"></div>
-        <div class="alert" style="background:var(--secondary-bg); color:var(--text); margin-top:20px;">
-            <b>Группы нет в списке?</b><br>
-            1. Добавьте бота в группу/канал.<br>
-            2. Назначьте его <b>администратором</b>.<br>
-            3. Разрешите <b>управление ссылками</b> и <b>бан участников</b>.<br>
-            4. Если не помогло — удалите и добавьте бота заново.
+        
+        <div class="stat-card" style="margin-bottom:15px; text-align:left;">
+            <label>Добавить по ID</label>
+            <div style="display:flex; gap:8px;">
+                <input type="text" id="add-chat-id" placeholder="-100XXXXXXXXXX" style="flex:1;">
+                <button class="nav-btn active" style="padding:0 15px;" onclick="addResource()">+</button>
+            </div>
         </div>
+
+        <div id="resources-list"></div>
     </div>
 
     <div id="section-tariffs" class="section">
@@ -169,11 +171,18 @@
                         ? `<div class="alert alert-success">✅ Права в порядке.</div>`
                         : `<div class="alert alert-danger">⚠️ Нужно: ${c.missing_permissions}</div>`;
                     if (!c.is_active) statusHtml = `<div class="alert alert-danger">❌ Бот удален или нет прав администратора.</div>`;
-                    item.innerHTML = `<div class="list-header"><div class="list-item-title">${c.title}</div></div>${statusHtml}`;
+                    item.innerHTML = `<div class="list-header"><div class="list-item-title">${c.title}</div><div class="list-item-subtitle">ID: ${c.chat_id}</div></div>${statusHtml}`;
                     cont.appendChild(item);
                 });
             } catch(e) {}
             showLoading(false);
+        }
+
+        async function addResource() {
+            const id = document.getElementById('add-chat-id').value;
+            if (!id) return;
+            await runAction('add_resource', {chat_id: id});
+            document.getElementById('add-chat-id').value = "";
         }
 
         async function loadTariffs() {
@@ -201,8 +210,7 @@
                 const us = await res.json();
                 us.forEach(u => {
                     const item = document.createElement('div'); 
-                    item.className = 'list-item';
-                    if(u.is_admin) item.style.borderLeft = '4px solid var(--button)';
+                    item.className = 'list-item' + (u.is_admin ? ' admin' : '');
                     let actions = `<button class="action-btn danger" onclick="kickUser(${u.telegram_id}, '${u.username}')">KICK</button>`;
                     if (u.is_super) actions = `<span style="font-size:10px; color:var(--hint)">SUPER ADMIN</span>`;
                     else if (u.is_admin) actions += `<button class="action-btn" onclick="runAction('demote_admin', {target_id: ${u.telegram_id}})">СНЯТЬ АДМИНА</button>`;
@@ -261,7 +269,7 @@
             const res = await fetch('/twa/action', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action, ...data}) });
             const r = await res.json();
             tg.showAlert(r.message);
-            if (action === 'sync_resources') loadResources();
+            if (action === 'sync_resources' || action === 'add_resource') loadResources();
             if (['promote_admin', 'demote_admin', 'kick_user'].includes(action)) loadUsers();
             showLoading(false);
         }
