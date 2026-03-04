@@ -9,3 +9,4 @@ pydantic
 pydantic-settings
 loguru
 python-dotenv
+cryptography
