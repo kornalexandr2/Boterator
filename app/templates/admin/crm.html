@@ -35,6 +35,8 @@
         .form-group { margin-bottom: 12px; }
         label { display: block; font-size: 12px; color: var(--hint); margin-bottom: 4px; }
         input, textarea, select { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; background: var(--bg); color: var(--text); box-sizing: border-box; }
+        .checkbox-group { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+        .checkbox-group input { width: auto; }
         .kick-btn { background: none; border: 1px solid var(--danger); color: var(--danger); padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: bold; }
         #loading-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.1); display: none; align-items: center; justify-content: center; z-index: 1000; font-size: 30px; }
     </style>
@@ -49,6 +51,7 @@
         <button class="nav-btn" onclick="switchSection('settings', this)">Настройки</button>
     </div>
 
+    <!-- DASHBOARD -->
     <div id="section-dashboard" class="section active">
         <h2>Дашборд</h2>
         <div class="dashboard">
@@ -60,26 +63,37 @@
         <button class="btn" onclick="runAction('export_csv')">Выгрузить CSV</button>
     </div>
 
+    <!-- TARIFFS -->
     <div id="section-tariffs" class="section">
         <div style="display:flex; justify-content:space-between; align-items:center;">
             <h2>Тарифы</h2><button class="nav-btn active" onclick="openTariffForm()">+</button>
         </div>
         <div id="tariffs-list"></div>
-        <div id="tariff-form" style="display:none; margin-top:10px;">
+        <div id="tariff-form" style="display:none; border-top: 1px solid #ccc; padding-top: 10px; margin-top: 10px;">
+            <h3 id="tariff-form-title">Новый тариф</h3>
             <input type="hidden" id="f-id">
             <div class="form-group"><label>Название</label><input type="text" id="f-name"></div>
-            <div class="form-group"><label>Цена</label><input type="number" id="f-price"></div>
-            <div class="form-group"><label>Дней</label><input type="number" id="f-days"></div>
-            <button class="btn" onclick="saveTariff()">Сохранить</button>
-            <button class="btn" style="background:var(--hint)" onclick="closeTariffForm()">Отмена</button>
+            <div class="form-group"><label>Цена (руб)</label><input type="number" id="f-price"></div>
+            <div class="form-group"><label>Длительность (дней, 0=вечно)</label><input type="number" id="f-days"></div>
+            <div class="form-group"><label>Описание</label><textarea id="f-desc"></textarea></div>
+            <div class="checkbox-group"><input type="checkbox" id="f-trial"> <label>Пробный (Trial)</label></div>
+            <div class="checkbox-group"><input type="checkbox" id="f-hidden"> <label>Скрыть (Hidden)</label></div>
+            <div class="checkbox-group"><input type="checkbox" id="f-email"> <label>Требовать Email</label></div>
+            <div class="checkbox-group"><input type="checkbox" id="f-phone"> <label>Требовать Телефон</label></div>
+            <div style="display: flex; gap: 8px; margin-top: 15px;">
+                <button class="btn" onclick="saveTariff()">Сохранить</button>
+                <button class="btn" style="background:var(--hint)" onclick="closeTariffForm()">Отмена</button>
+            </div>
         </div>
     </div>
 
+    <!-- USERS -->
     <div id="section-users" class="section">
         <h2>Пользователи</h2>
         <div id="users-list"></div>
     </div>
 
+    <!-- BROADCAST -->
     <div id="section-broadcast" class="section">
         <h2>Рассылка</h2>
         <div class="form-group"><label>Текст</label><textarea id="b-text" rows="4"></textarea></div>
@@ -87,6 +101,7 @@
         <button class="btn" onclick="runAction('broadcast', {text:document.getElementById('b-text').value, target:document.getElementById('b-target').value})">Отправить</button>
     </div>
 
+    <!-- SETTINGS -->
     <div id="section-settings" class="section">
         <h2>Настройки</h2>
         <div class="form-group">
@@ -146,10 +161,78 @@
                 const ts = await res.json();
                 ts.forEach(t => {
                     const item = document.createElement('div'); item.className = 'list-item';
-                    item.innerHTML = `<div><b>${t.name}</b><br>${t.price} ₽</div><button class="nav-btn" onclick="deleteTariff(${t.id})">✕</button>`;
+                    item.innerHTML = `
+                        <div class="list-item-info">
+                            <div class="list-item-title">${t.name} ${t.is_hidden?'(Скрыт)':''}</div>
+                            <div class="list-item-subtitle">${t.price} ₽ | ${t.duration_days || '∞'} дн.</div>
+                        </div>
+                        <div class="list-item-actions">
+                            <button class="nav-btn small-btn" onclick='editTariff(${JSON.stringify(t)})'>🖉</button>
+                            <button class="nav-btn small-btn btn-danger" onclick="deleteTariff(${t.id})">✕</button>
+                        </div>
+                    `;
                     cont.appendChild(item);
                 });
             } catch(e) {}
+            showLoading(false);
+        }
+
+        function openTariffForm() {
+            document.getElementById('tariff-form').style.display = 'block';
+            document.getElementById('tariffs-list').style.display = 'none';
+            document.getElementById('tariff-form-title').innerText = "Новый тариф";
+            document.getElementById('f-id').value = "";
+            document.getElementById('f-name').value = "";
+            document.getElementById('f-price').value = "";
+            document.getElementById('f-days').value = "";
+            document.getElementById('f-desc').value = "";
+            document.getElementById('f-trial').checked = false;
+            document.getElementById('f-hidden').checked = false;
+            document.getElementById('f-email').checked = false;
+            document.getElementById('f-phone').checked = false;
+        }
+
+        function editTariff(t) {
+            openTariffForm();
+            document.getElementById('tariff-form-title').innerText = "Правка тарифа";
+            document.getElementById('f-id').value = t.id;
+            document.getElementById('f-name').value = t.name;
+            document.getElementById('f-price').value = t.price;
+            document.getElementById('f-days').value = t.duration_days;
+            document.getElementById('f-desc').value = t.description || "";
+            document.getElementById('f-trial').checked = t.is_trial;
+            document.getElementById('f-hidden').checked = t.is_hidden;
+            document.getElementById('f-email').checked = t.require_email;
+            document.getElementById('f-phone').checked = t.require_phone;
+        }
+
+        function closeTariffForm() {
+            document.getElementById('tariff-form').style.display = 'none';
+            document.getElementById('tariffs-list').style.display = 'block';
+        }
+
+        async function saveTariff() {
+            const data = {
+                id: document.getElementById('f-id').value,
+                name: document.getElementById('f-name').value,
+                price: document.getElementById('f-price').value,
+                duration_days: document.getElementById('f-days').value,
+                description: document.getElementById('f-desc').value,
+                is_trial: document.getElementById('f-trial').checked,
+                is_hidden: document.getElementById('f-hidden').checked,
+                require_email: document.getElementById('f-email').checked,
+                require_phone: document.getElementById('f-phone').checked
+            };
+            showLoading(true);
+            try {
+                await fetch('/twa/tariffs', { 
+                    method:'POST', 
+                    headers:{'Content-Type':'application/json'}, 
+                    body:JSON.stringify(data) 
+                });
+                closeTariffForm(); 
+                loadTariffs();
+            } catch(e) { tg.showAlert("Ошибка сохранения"); }
             showLoading(false);
         }
 
@@ -187,8 +270,6 @@
                 ]
             }, (buttonId) => {
                 if (buttonId === 'kick') {
-                    // Telegram TWA doesn't have a built-in text input in showPopup, 
-                    // so we use a simple prompt for the reason.
                     const reason = prompt("Причина исключения:", "Нарушение правил сообщества");
                     if (reason !== null) {
                         runAction('kick_user', {target_id: id, reason: reason});
@@ -220,14 +301,12 @@
             showLoading(false);
         }
 
-        function openTariffForm() { document.getElementById('tariff-form').style.display='block'; }
-        function closeTariffForm() { document.getElementById('tariff-form').style.display='none'; }
-        
-        async function saveTariff() {
-            const data = { name: document.getElementById('f-name').value, price: document.getElementById('f-price').value, duration_days: document.getElementById('f-days').value };
-            showLoading(true);
-            await fetch('/twa/tariffs', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
-            closeTariffForm(); loadTariffs(); showLoading(false);
+        async function deleteTariff(id) {
+            if(confirm("Удалить?")) {
+                showLoading(true);
+                await fetch(`/twa/tariffs/${id}`, { method:'DELETE' });
+                loadTariffs(); showLoading(false);
+            }
         }
 
         async function runAction(action, data={}) {
