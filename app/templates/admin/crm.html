@@ -14,6 +14,8 @@
             --button-text: var(--tg-theme-button-text-color, #ffffff);
             --secondary-bg: var(--tg-theme-secondary-bg-color, #f0f0f0);
             --danger: #e53935;
+            --warning: #ffa000;
+            --success: #4caf50;
         }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 16px; margin: 0; }
         .nav-buttons { display: flex; gap: 8px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 8px; }
@@ -26,18 +28,18 @@
         .stat-card h3 { margin: 0; font-size: 12px; color: var(--hint); }
         .stat-card p { margin: 4px 0 0; font-size: 18px; font-weight: bold; }
         .btn { background: var(--button); color: var(--button-text); border: none; padding: 10px; border-radius: 8px; cursor: pointer; width: 100%; margin-bottom: 10px; font-weight: 600; }
-        .list-item { background: var(--secondary-bg); padding: 12px; border-radius: 8px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 10px; border-left: 4px solid transparent; }
-        .list-item.admin { border-left-color: var(--button); }
+        .list-item { background: var(--secondary-bg); padding: 12px; border-radius: 8px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 10px; }
         .list-header { display: flex; justify-content: space-between; align-items: center; }
         .list-item-title { font-weight: bold; font-size: 14px; }
         .list-item-subtitle { font-size: 12px; color: var(--hint); }
-        .list-item-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-        .action-btn { background: var(--bg); border: 1px solid var(--hint); color: var(--text); padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; }
-        .action-btn.danger { border-color: var(--danger); color: var(--danger); }
-        .action-btn.primary { border-color: var(--button); color: var(--button); }
+        .alert { padding: 10px; border-radius: 8px; font-size: 12px; margin-top: 5px; border: 1px solid transparent; }
+        .alert-danger { background: #ffebee; color: #c62828; border-color: #ffcdd2; }
+        .alert-success { background: #e8f5e9; color: #2e7d32; border-color: #c8e6c9; }
         .form-group { margin-bottom: 12px; }
         label { display: block; font-size: 12px; color: var(--hint); margin-bottom: 4px; }
         input, textarea, select { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; background: var(--bg); color: var(--text); box-sizing: border-box; }
+        .action-btn { background: var(--bg); border: 1px solid var(--hint); color: var(--text); padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; }
+        .action-btn.danger { border-color: var(--danger); color: var(--danger); }
         #loading-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.1); display: none; align-items: center; justify-content: center; z-index: 1000; font-size: 30px; }
     </style>
 </head>
@@ -45,6 +47,7 @@
     <div id="loading-overlay">⌛</div>
     <div class="nav-buttons">
         <button class="nav-btn active" onclick="switchSection('dashboard', this)">Дашборд</button>
+        <button class="nav-btn" onclick="switchSection('resources', this)">Ресурсы</button>
         <button class="nav-btn" onclick="switchSection('tariffs', this)">Тарифы</button>
         <button class="nav-btn" onclick="switchSection('users', this)">Пользователи</button>
         <button class="nav-btn" onclick="switchSection('broadcast', this)">Рассылка</button>
@@ -60,6 +63,12 @@
             <div class="stat-card"><h3>Всего</h3><p id="stat-total">0</p></div>
         </div>
         <button class="btn" onclick="runAction('export_csv')">Выгрузить CSV</button>
+    </div>
+
+    <div id="section-resources" class="section">
+        <h2>Управляемые ресурсы</h2>
+        <p class="list-item-subtitle" style="margin-bottom:15px;">Добавьте бота в группу или канал как администратора, чтобы он появился в этом списке.</p>
+        <div id="resources-list"></div>
     </div>
 
     <div id="section-tariffs" class="section">
@@ -122,6 +131,7 @@
             document.getElementById(`section-${id}`).classList.add('active');
             if(btn) btn.classList.add('active');
             if(id==='dashboard') loadStats();
+            if(id==='resources') loadResources();
             if(id==='tariffs') loadTariffs();
             if(id==='users') loadUsers();
             if(id==='settings') loadSettings();
@@ -140,6 +150,36 @@
             showLoading(false);
         }
 
+        async function loadResources() {
+            showLoading(true);
+            const cont = document.getElementById('resources-list'); cont.innerHTML = "";
+            try {
+                const res = await fetch('/twa/managed-chats');
+                const chats = await res.json();
+                chats.forEach(c => {
+                    const item = document.createElement('div');
+                    item.className = 'list-item';
+                    let statusHtml = c.permissions_ok 
+                        ? `<div class="alert alert-success">✅ Бот имеет все права для управления участниками.</div>`
+                        : `<div class="alert alert-danger">
+                             ⚠️ <b>Внимание!</b> Недостаточно прав для управления.<br>
+                             Нужно включить: <b>${c.missing_permissions}</b>.
+                           </div>`;
+                    
+                    item.innerHTML = `
+                        <div class="list-header">
+                            <div class="list-item-title">${c.title}</div>
+                            <div class="list-item-subtitle">ID: ${c.chat_id}</div>
+                        </div>
+                        ${statusHtml}
+                    `;
+                    cont.appendChild(item);
+                });
+                if(chats.length === 0) cont.innerHTML = "<p style='text-align:center; color:var(--hint);'>Список ресурсов пуст.</p>";
+            } catch(e) {}
+            showLoading(false);
+        }
+
         async function loadTariffs() {
             showLoading(true);
             const cont = document.getElementById('tariffs-list'); cont.innerHTML = "";
@@ -148,7 +188,7 @@
                 const ts = await res.json();
                 ts.forEach(t => {
                     const item = document.createElement('div'); item.className = 'list-item';
-                    item.innerHTML = `<div><b>${t.name}</b><br>${t.price} ₽</div><button class="action-btn danger" onclick="deleteTariff(${t.id})">✕</button>`;
+                    item.innerHTML = `<div class="list-header"><div><b>${t.name}</b><br>${t.price} ₽</div><button class="action-btn danger" onclick="deleteTariff(${t.id})">✕</button></div>`;
                     cont.appendChild(item);
                 });
             } catch(e) {}
@@ -163,24 +203,20 @@
                 const us = await res.json();
                 us.forEach(u => {
                     const item = document.createElement('div'); 
-                    item.className = 'list-item' + (u.is_admin ? ' admin' : '');
+                    item.className = 'list-item';
+                    if(u.is_admin) item.style.borderLeft = '4px solid var(--button)';
                     
                     let actions = `<button class="action-btn danger" onclick="kickUser(${u.telegram_id}, '${u.username}')">KICK</button>`;
-                    
-                    if (u.is_super) {
-                        actions = `<span style="font-size:10px; color:var(--hint)">SUPER ADMIN</span>`;
-                    } else if (u.is_admin) {
-                        actions += `<button class="action-btn" onclick="runAction('demote_admin', {target_id: ${u.telegram_id}})">СНЯТЬ АДМИНА</button>`;
-                    } else {
-                        actions += `<button class="action-btn primary" onclick="runAction('promote_admin', {target_id: ${u.telegram_id}})">СДЕЛАТЬ АДМИНОМ</button>`;
-                    }
+                    if (u.is_super) actions = `<span style="font-size:10px; color:var(--hint)">SUPER ADMIN</span>`;
+                    else if (u.is_admin) actions += `<button class="action-btn" onclick="runAction('demote_admin', {target_id: ${u.telegram_id}})">СНЯТЬ АДМИНА</button>`;
+                    else actions += `<button class="action-btn" onclick="runAction('promote_admin', {target_id: ${u.telegram_id}})">СДЕЛАТЬ АДМИНОМ</button>`;
 
                     item.innerHTML = `
                         <div class="list-header">
                             <div class="list-item-title">${u.is_admin?'👑 ':''}${u.username}</div>
                             <div>${u.has_active_sub?'✅':'❌'}</div>
                         </div>
-                        <div class="list-item-actions">${actions}</div>
+                        <div style="display:flex; gap:8px;">${actions}</div>
                     `;
                     cont.appendChild(item);
                 });
@@ -215,12 +251,19 @@
 
         function openTariffForm() { document.getElementById('tariff-form').style.display='block'; }
         function closeTariffForm() { document.getElementById('tariff-form').style.display='none'; }
-        
         async function saveTariff() {
             const data = { name: document.getElementById('f-name').value, price: document.getElementById('f-price').value, duration_days: document.getElementById('f-days').value };
             showLoading(true);
             await fetch('/twa/tariffs', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
             closeTariffForm(); loadTariffs(); showLoading(false);
+        }
+
+        async function deleteTariff(id) {
+            if(confirm("Удалить?")) {
+                showLoading(true);
+                await fetch(`/twa/tariffs/${id}`, { method:'DELETE' });
+                loadTariffs(); showLoading(false);
+            }
         }
 
         async function runAction(action, data={}) {

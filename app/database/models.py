@@ -87,4 +87,6 @@ class ManagedChat(Base):
     title = Column(String(255), nullable=False)
     invite_link = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True)
+    permissions_ok = Column(Boolean, default=True)
+    missing_permissions = Column(Text, nullable=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
