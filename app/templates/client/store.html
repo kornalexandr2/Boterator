@@ -98,10 +98,11 @@
             }
         }
 
-        function buyTariff(id, requireEmail) {
-            let data = { tariff_id: id };
+        async function buyTariff(id, requireEmail) {
+            let data = { tariff_id: id, action: "buy" };
             if (requireEmail) {
-                const email = document.getElementById(`email_${id}`).value;
+                const emailInput = document.getElementById(`email_${id}`);
+                const email = emailInput ? emailInput.value : '';
                 if (!email) {
                     tg.showAlert("Пожалуйста, введите Email");
                     return;
@@ -109,8 +110,29 @@
                 data.email = email;
             }
             
-            // Send data back to bot
-            tg.sendData(JSON.stringify({action: "buy", ...data}));
+            tg.MainButton.showProgress();
+            try {
+                const response = await fetch('/twa/action', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Telegram-Init-Data': tg.initData
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                if (result.status === 'ok') {
+                    tg.showAlert("Запрос отправлен! Бот пришлет вам инструкции по оплате.");
+                    tg.close();
+                } else {
+                    tg.showAlert("Ошибка: " + result.message);
+                }
+            } catch (e) {
+                tg.showAlert("Сбой при отправке запроса");
+            } finally {
+                tg.MainButton.hideProgress();
+            }
         }
 
         loadTariffs();
