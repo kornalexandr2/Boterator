@@ -72,10 +72,28 @@ async def save_tariff(request: Request, db: AsyncSession = Depends(get_db_sessio
     tid = data.get("id")
     try:
         if tid:
-            stmt = update(Tariff).where(Tariff.id == tid).values(name=data["name"], description=data.get("description", ""), price=float(data["price"]), duration_days=int(data["duration_days"]), is_trial=bool(data.get("is_trial", False)), is_hidden=bool(data.get("is_hidden", False)), require_email=bool(data.get("require_email", False)), require_phone=bool(data.get("require_phone", False)))
+            stmt = update(Tariff).where(Tariff.id == tid).values(
+                name=data["name"], 
+                description=data.get("description", ""), 
+                price=float(data["price"]), 
+                duration_days=int(data["duration_days"]), 
+                is_trial=bool(data.get("is_trial", False)), 
+                is_hidden=bool(data.get("is_hidden", False)), 
+                require_email=bool(data.get("require_email", False)), 
+                require_phone=bool(data.get("require_phone", False))
+            )
             await db.execute(stmt)
         else:
-            db.add(Tariff(name=data["name"], description=data.get("description", ""), price=float(data["price"]), duration_days=int(data["duration_days"]), is_trial=bool(data.get("is_trial", False)), is_hidden=bool(data.get("is_hidden", False)), require_email=bool(data.get("require_email", False)), require_phone=bool(data.get("require_phone", False))))
+            db.add(Tariff(
+                name=data["name"], 
+                description=data.get("description", ""), 
+                price=float(data["price"]), 
+                duration_days=int(data["duration_days"]), 
+                is_trial=bool(data.get("is_trial", False)), 
+                is_hidden=bool(data.get("is_hidden", False)), 
+                require_email=bool(data.get("require_email", False)), 
+                require_phone=bool(data.get("require_phone", False))
+            ))
         await db.commit()
         return {"status": "ok"}
     except Exception as e:
@@ -140,11 +158,39 @@ async def process_twa_action(request: Request, background_tasks: BackgroundTasks
             tariff_id = data.get("tariff_id")
             email = data.get("email")
             
-            settings_dict = {s.key: s.value for s in (await db.execute(select(SystemSetting))).scalars().all()}
-            mode = settings_dict.get("payment_mode", "mock")
-
             tariff = (await db.execute(select(Tariff).where(Tariff.id == tariff_id))).scalar_one_or_none()
             if not tariff: return JSONResponse({"status": "error", "message": "Тариф не найден"}, status_code=404)
+
+            # --- TRIAL LOGIC ---
+            if tariff.is_trial:
+                # Check if user already used ANY trial
+                trial_stmt = select(Subscription).join(Tariff).where(
+                    Subscription.user_id == user_id,
+                    Tariff.is_trial == True
+                )
+                existing_trial = (await db.execute(trial_stmt)).scalar_one_or_none()
+                
+                if existing_trial:
+                    return JSONResponse({"status": "error", "message": "Вы уже использовали пробный период ранее."}, status_code=400)
+                
+                # Activate trial immediately
+                end_date = datetime.now(timezone.utc) + timedelta(days=tariff.duration_days)
+                new_sub = Subscription(
+                    user_id=user_id,
+                    tariff_id=tariff.id,
+                    start_date=datetime.now(timezone.utc),
+                    end_date=end_date,
+                    is_active=True
+                )
+                db.add(new_sub)
+                await db.commit()
+                
+                await bot.send_message(user_id, f"✅ <b>Пробный период активирован!</b>\n\nТариф: {tariff.name}\nДействует до: {end_date.strftime('%d.%m.%Y %H:%M')}\n\nТеперь вы можете вступить в наши закрытые каналы.")
+                return JSONResponse({"status": "ok", "message": "Пробный период успешно активирован!"})
+            # -------------------
+
+            settings_dict = {s.key: s.value for s in (await db.execute(select(SystemSetting))).scalars().all()}
+            mode = settings_dict.get("payment_mode", "mock")
 
             if mode == "yookassa":
                  return JSONResponse({"status": "error", "message": "YooKassa в разработке. Используйте YooMoney или Mock."}, status_code=400)
