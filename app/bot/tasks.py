@@ -44,6 +44,15 @@ async def check_subscriptions(bot: Bot):
                 expired_subs = res.scalars().all()
                 
                 for sub in expired_subs:
+                    # Check if user is admin before processing expiry
+                    user_stmt = select(User).where(User.telegram_id == sub.user_id)
+                    user_res = await session.execute(user_stmt)
+                    user = user_res.scalar_one_or_none()
+
+                    if user and user.is_admin:
+                        logger.info(f"Skipping expiry for admin user {sub.user_id}")
+                        continue
+
                     logger.info(f"Subscription {sub.id} for user {sub.user_id} expired.")
                     # Deactivate sub
                     sub.is_active = False

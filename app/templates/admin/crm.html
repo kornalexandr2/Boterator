@@ -155,8 +155,21 @@
                 const res = await fetch('/twa/users');
                 const us = await res.json();
                 us.forEach(u => {
-                    const item = document.createElement('div'); item.className = 'list-item';
-                    item.innerHTML = `<div>${u.username}</div><div>${u.has_active_sub?'✅':'❌'}</div>`;
+                    const item = document.createElement('div'); 
+                    item.className = 'list-item';
+                    if (u.is_admin) {
+                        item.style.borderLeft = '4px solid var(--button)';
+                        item.style.background = 'var(--secondary-bg)';
+                    }
+                    item.innerHTML = `
+                        <div class="list-item-info">
+                            <div class="list-item-title">
+                                ${u.is_admin ? '👑 ' : ''}${u.username}
+                            </div>
+                            <div class="list-item-subtitle">${u.full_name || ''}</div>
+                        </div>
+                        <div>${u.has_active_sub ? '✅' : '❌'}</div>
+                    `;
                     cont.appendChild(item);
                 });
             } catch(e) {}
