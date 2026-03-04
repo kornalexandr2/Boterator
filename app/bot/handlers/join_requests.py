@@ -24,6 +24,22 @@ async def process_join_request(update: types.ChatJoinRequest, session: AsyncSess
     result = await session.execute(stmt)
     user = result.scalar_one_or_none()
     
+    if not user:
+        # Register new user if not found
+        logger.info(f"Registering new user {update.from_user.id} through join request.")
+        user = User(
+            telegram_id=update.from_user.id,
+            username=update.from_user.username,
+            first_name=update.from_user.first_name,
+            last_name=update.from_user.last_name,
+        )
+        session.add(user)
+        try:
+            await session.commit()
+        except Exception as e:
+            logger.error(f"Failed to commit new user {update.from_user.id}: {e}")
+            await session.rollback()
+    
     # Check if user is eternal (already in chat before bot was added)
     if user and user.is_eternal:
          logger.info(f"User {update.from_user.id} is eternal. Approving.")

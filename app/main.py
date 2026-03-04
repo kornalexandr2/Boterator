@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
     await init_models()
     
     if bot and dp:
-         webhook_url = f"{settings.app.base_url}/webhook"
+         webhook_url = f"{settings.app.base_url.rstrip('/')}/webhook"
          try:
              await bot.set_webhook(webhook_url)
              logger.info(f"Webhook set to {webhook_url}")
@@ -77,6 +77,7 @@ async def root():
     return "<h1>Boterator is running</h1><p>Check logs for warnings if configuration is missing.</p>"
 
 @app.post("/webhook")
+@app.post("//webhook")
 async def telegram_webhook(request: Request):
     """Handles incoming updates from Telegram."""
     if not bot or not dp:

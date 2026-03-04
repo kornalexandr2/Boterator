@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Integer, String, DateTime, ForeignKey, Float, Text
+from sqlalchemy import Boolean, Column, Integer, BigInteger, String, DateTime, ForeignKey, Float, Text
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
 
@@ -7,7 +7,7 @@ Base = declarative_base()
 class User(Base):
     __tablename__ = "users"
 
-    telegram_id = Column(Integer, primary_key=True, index=True)
+    telegram_id = Column(BigInteger, primary_key=True, index=True)
     username = Column(String(255), nullable=True)
     first_name = Column(String(255), nullable=True)
     last_name = Column(String(255), nullable=True)
@@ -44,7 +44,7 @@ class Subscription(Base):
     __tablename__ = "subscriptions"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.telegram_id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("users.telegram_id", ondelete="CASCADE"), nullable=False)
     tariff_id = Column(Integer, ForeignKey("tariffs.id", ondelete="CASCADE"), nullable=False)
     start_date = Column(DateTime(timezone=True), server_default=func.now())
     end_date = Column(DateTime(timezone=True), nullable=True) # Null if lifetime
@@ -62,7 +62,7 @@ class Payment(Base):
     __tablename__ = "payments"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.telegram_id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("users.telegram_id", ondelete="CASCADE"), nullable=False)
     amount = Column(Float, nullable=False)
     provider = Column(String(50), nullable=False) # 'yookassa', 'sberbank', 'yoomoney', 'mock'
     status = Column(String(50), nullable=False, default="pending") # 'pending', 'success', 'failed', 'refunded'
