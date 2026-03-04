@@ -6,110 +6,313 @@
     <title>CRM Администратора</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body {
-            font-family: sans-serif;
-            background-color: var(--tg-theme-bg-color, #ffffff);
-            color: var(--tg-theme-text-color, #000000);
-            padding: 16px;
+        :root {
+            --bg: var(--tg-theme-bg-color, #ffffff);
+            --text: var(--tg-theme-text-color, #000000);
+            --hint: var(--tg-theme-hint-color, #888);
+            --link: var(--tg-theme-link-color, #2481cc);
+            --button: var(--tg-theme-button-color, #2481cc);
+            --button-text: var(--tg-theme-button-text-color, #ffffff);
+            --secondary-bg: var(--tg-theme-secondary-bg-color, #f0f0f0);
         }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            padding: 16px;
+            margin: 0;
+        }
+        h2, h3 { margin-top: 0; }
         .dashboard {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 20px;
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;
         }
         .stat-card {
-            background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
+            background-color: var(--secondary-bg);
+            padding: 12px; border-radius: 8px; text-align: center;
         }
-        .stat-card h3 { margin: 0; font-size: 14px; color: var(--tg-theme-hint-color, #888); }
-        .stat-card p { margin: 5px 0 0; font-size: 20px; font-weight: bold; }
+        .stat-card h3 { margin: 0; font-size: 12px; color: var(--hint); }
+        .stat-card p { margin: 4px 0 0; font-size: 18px; font-weight: bold; }
+        
+        .nav-buttons { display: flex; gap: 8px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 8px; }
+        .nav-btn {
+            background-color: var(--secondary-bg); color: var(--text);
+            border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; white-space: nowrap;
+        }
+        .nav-btn.active { background-color: var(--button); color: var(--button-text); }
+        
+        .section { display: none; }
+        .section.active { display: block; }
+        
         .btn {
-            background-color: var(--tg-theme-button-color, #2481cc);
-            color: var(--tg-theme-button-text-color, #ffffff);
-            border: none;
-            padding: 10px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-            width: 100%;
-            margin-bottom: 10px;
+            background-color: var(--button); color: var(--button-text);
+            border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; width: 100%; margin-bottom: 10px;
+            font-size: 14px; font-weight: 500;
         }
-        .section { margin-top: 20px; border-top: 1px solid #ccc; padding-top: 10px;}
+        .btn-danger { background-color: #e53935; }
+        .btn-secondary { background-color: var(--hint); }
+        
+        .list-item {
+            background-color: var(--secondary-bg); padding: 12px; border-radius: 8px; margin-bottom: 8px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .list-item-info { flex: 1; }
+        .list-item-title { font-weight: bold; font-size: 14px; }
+        .list-item-subtitle { font-size: 12px; color: var(--hint); }
+        .list-item-actions { display: flex; gap: 8px; }
+        .small-btn { padding: 4px 8px; font-size: 12px; border-radius: 4px; }
+        
+        .form-group { margin-bottom: 12px; }
+        label { display: block; font-size: 12px; color: var(--hint); margin-bottom: 4px; }
+        input, textarea, select {
+            width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc;
+            background: var(--bg); color: var(--text); box-sizing: border-box;
+        }
+        .checkbox-group { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+        .checkbox-group input { width: auto; }
+        
+        #loading-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.1);
+            display: flex; align-items: center; justify-content: center; z-index: 1000; display: none;
+        }
     </style>
 </head>
 <body>
-    <h2>Дашборд</h2>
-    <div class="dashboard">
-        <div class="stat-card">
-            <h3>Доход (мес)</h3>
-            <p>150,000 ₽</p>
+    <div id="loading-overlay">⌛ Загрузка...</div>
+
+    <div class="nav-buttons">
+        <button class="nav-btn active" onclick="switchSection('dashboard')">Дашборд</button>
+        <button class="nav-btn" onclick="switchSection('tariffs')">Тарифы</button>
+        <button class="nav-btn" onclick="switchSection('users')">Пользователи</button>
+        <button class="nav-btn" onclick="switchSection('broadcast')">Рассылка</button>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="section-dashboard" class="section active">
+        <h2>Дашборд</h2>
+        <div class="dashboard">
+            <div class="stat-card"><h3>Доход (мес)</h3><p id="stat-revenue">0 ₽</p></div>
+            <div class="stat-card"><h3>Новые юзеры</h3><p id="stat-new-users">0</p></div>
+            <div class="stat-card"><h3>Активные</h3><p id="stat-active">0</p></div>
+            <div class="stat-card"><h3>Всего юзеров</h3><p id="stat-total">0</p></div>
         </div>
-        <div class="stat-card">
-            <h3>Новые юзеры</h3>
-            <p>+45</p>
+        <button class="btn" onclick="runAction('export_csv')">Выгрузить CSV пользователей</button>
+    </div>
+
+    <!-- TARIFFS -->
+    <div id="section-tariffs" class="section">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2>Тарифы</h2>
+            <button class="nav-btn active small-btn" onclick="openTariffForm()">+ Добавить</button>
         </div>
-        <div class="stat-card">
-            <h3>Отток (Churn)</h3>
-            <p>2.5%</p>
-        </div>
-        <div class="stat-card">
-            <h3>Активные</h3>
-            <p>1,250</p>
+        <div id="tariffs-list"></div>
+        
+        <!-- Tariff Form (hidden by default) -->
+        <div id="tariff-form" style="display: none; border-top: 1px solid #ccc; padding-top: 10px; margin-top: 10px;">
+            <h3 id="tariff-form-title">Новый тариф</h3>
+            <input type="hidden" id="f-id">
+            <div class="form-group"><label>Название</label><input type="text" id="f-name"></div>
+            <div class="form-group"><label>Цена (руб)</label><input type="number" id="f-price"></div>
+            <div class="form-group"><label>Длительность (дней, 0=вечно)</label><input type="number" id="f-days"></div>
+            <div class="form-group"><label>Описание</label><textarea id="f-desc"></textarea></div>
+            <div class="form-group checkbox-group"><input type="checkbox" id="f-trial"> <label>Пробный (Trial)</label></div>
+            <div class="form-group checkbox-group"><input type="checkbox" id="f-email"> <label>Требовать Email</label></div>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn" onclick="saveTariff()">Сохранить</button>
+                <button class="btn btn-secondary" onclick="closeTariffForm()">Отмена</button>
+            </div>
         </div>
     </div>
 
-    <button class="btn" onclick="exportCSV()">Выгрузить CSV</button>
+    <!-- USERS -->
+    <div id="section-users" class="section">
+        <h2>Пользователи (Топ-100)</h2>
+        <div id="users-list"></div>
+    </div>
 
-    <div class="section">
-        <h3>Управление</h3>
-        <button class="btn" onclick="showSection('tariffs')">Управление тарифами</button>
-        <button class="btn" onclick="showSection('users')">Управление пользователями</button>
-        <button class="btn" onclick="showSection('broadcast')">Рассылка (Broadcast)</button>
+    <!-- BROADCAST -->
+    <div id="section-broadcast" class="section">
+        <h2>Рассылка</h2>
+        <div class="form-group">
+            <label>Текст сообщения</label>
+            <textarea id="b-text" rows="6" placeholder="Введите текст сообщения..."></textarea>
+        </div>
+        <div class="form-group">
+            <label>Кому отправить</label>
+            <select id="b-target">
+                <option value="all">Всем пользователям</option>
+                <option value="active">Только активным подписчикам</option>
+                <option value="expired">С истекшей подпиской</option>
+            </select>
+        </div>
+        <button class="btn" onclick="runAction('broadcast', {text: document.getElementById('b-text').value, target: document.getElementById('b-target').value})">🚀 Запустить рассылку</button>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
 
-        async function sendAction(action, extraData = {}) {
-            const data = { action, ...extraData };
-            
-            try {
-                const response = await fetch('/twa/action', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Telegram-Init-Data': tg.initData
-                    },
-                    body: JSON.stringify(data)
-                });
-                
-                const result = await response.json();
-                if (result.status === 'ok') {
-                    tg.showAlert("Успешно: " + result.message);
-                } else {
-                    tg.showAlert("Ошибка: " + result.message);
-                }
-            } catch (e) {
-                tg.showAlert("Сбой при соединении с сервером");
-            }
+        function showLoading(show) {
+            document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
         }
 
-        function exportCSV() {
-            tg.showConfirm("Сгенерировать CSV выгрузку? Бот пришлет файл в личные сообщения.", (confirmed) => {
-                if (confirmed) {
-                    sendAction("export_csv");
+        async function switchSection(sectionId) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            
+            document.getElementById(`section-${sectionId}`).classList.add('active');
+            event.target.classList.add('active');
+            
+            if (sectionId === 'dashboard') loadStats();
+            if (sectionId === 'tariffs') loadTariffs();
+            if (sectionId === 'users') loadUsers();
+        }
+
+        async function loadStats() {
+            showLoading(true);
+            try {
+                const res = await fetch('/twa/stats');
+                const data = await res.json();
+                document.getElementById('stat-revenue').innerText = data.monthly_revenue;
+                document.getElementById('stat-new-users').innerText = data.new_users;
+                document.getElementById('stat-active').innerText = data.active_subscriptions;
+                document.getElementById('stat-total').innerText = data.total_users;
+            } catch (e) { tg.showAlert("Ошибка загрузки статистики"); }
+            showLoading(false);
+        }
+
+        async function loadTariffs() {
+            showLoading(true);
+            const container = document.getElementById('tariffs-list');
+            container.innerHTML = "";
+            try {
+                const res = await fetch('/twa/tariffs');
+                const tariffs = await res.json();
+                tariffs.forEach(t => {
+                    const item = document.createElement('div');
+                    item.className = 'list-item';
+                    item.innerHTML = `
+                        <div class="list-item-info">
+                            <div class="list-item-title">${t.name}</div>
+                            <div class="list-item-subtitle">${t.price} ₽ | ${t.duration_days || '∞'} дн.</div>
+                        </div>
+                        <div class="list-item-actions">
+                            <button class="nav-btn small-btn" onclick='editTariff(${JSON.stringify(t)})'>🖉</button>
+                            <button class="nav-btn small-btn btn-danger" onclick="deleteTariff(${t.id})">✕</button>
+                        </div>
+                    `;
+                    container.appendChild(item);
+                });
+            } catch (e) { tg.showAlert("Ошибка загрузки тарифов"); }
+            showLoading(false);
+        }
+
+        async function loadUsers() {
+            showLoading(true);
+            const container = document.getElementById('users-list');
+            container.innerHTML = "";
+            try {
+                const res = await fetch('/twa/users');
+                const users = await res.json();
+                users.forEach(u => {
+                    const item = document.createElement('div');
+                    item.className = 'list-item';
+                    item.innerHTML = `
+                        <div class="list-item-info">
+                            <div class="list-item-title">${u.username} ${u.is_admin ? '⭐' : ''}</div>
+                            <div class="list-item-subtitle">${u.full_name} | ${u.has_active_sub ? '✅ Активен' : '❌ Нет подписки'}</div>
+                        </div>
+                    `;
+                    container.appendChild(item);
+                });
+            } catch (e) { tg.showAlert("Ошибка загрузки пользователей"); }
+            showLoading(false);
+        }
+
+        function openTariffForm() {
+            document.getElementById('tariff-form').style.display = 'block';
+            document.getElementById('f-id').value = "";
+            document.getElementById('f-name').value = "";
+            document.getElementById('f-price').value = "";
+            document.getElementById('f-days').value = "";
+            document.getElementById('f-desc').value = "";
+            document.getElementById('f-trial').checked = false;
+            document.getElementById('f-email').checked = false;
+            document.getElementById('tariff-form-title').innerText = "Новый тариф";
+            document.getElementById('tariffs-list').style.display = 'none';
+        }
+
+        function editTariff(t) {
+            openTariffForm();
+            document.getElementById('f-id').value = t.id;
+            document.getElementById('f-name').value = t.name;
+            document.getElementById('f-price').value = t.price;
+            document.getElementById('f-days').value = t.duration_days;
+            document.getElementById('f-desc').value = t.description;
+            document.getElementById('f-trial').checked = t.is_trial;
+            document.getElementById('f-email').checked = t.require_email;
+            document.getElementById('tariff-form-title').innerText = "Правка тарифа";
+        }
+
+        function closeTariffForm() {
+            document.getElementById('tariff-form').style.display = 'none';
+            document.getElementById('tariffs-list').style.display = 'block';
+        }
+
+        async function saveTariff() {
+            const data = {
+                id: document.getElementById('f-id').value,
+                name: document.getElementById('f-name').value,
+                price: document.getElementById('f-price').value,
+                duration_days: document.getElementById('f-days').value,
+                description: document.getElementById('f-desc').value,
+                is_trial: document.getElementById('f-trial').checked,
+                require_email: document.getElementById('f-email').checked
+            };
+            
+            showLoading(true);
+            try {
+                const res = await fetch('/twa/tariffs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if ((await res.json()).status === 'ok') {
+                    closeTariffForm();
+                    loadTariffs();
+                }
+            } catch (e) { tg.showAlert("Ошибка сохранения"); }
+            showLoading(false);
+        }
+
+        async function deleteTariff(id) {
+            tg.showConfirm("Удалить этот тариф?", async (yes) => {
+                if (yes) {
+                    showLoading(true);
+                    try {
+                        await fetch(`/twa/tariffs/${id}`, { method: 'DELETE' });
+                        loadTariffs();
+                    } catch (e) { tg.showAlert("Ошибка удаления"); }
+                    showLoading(false);
                 }
             });
         }
 
-        function showSection(section) {
-            sendAction(`open_${section}`);
-            // We don't close anymore, or close only after success if needed
-            // tg.close(); 
+        async function runAction(action, extraData = {}) {
+            showLoading(true);
+            try {
+                const res = await fetch('/twa/action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, ...extraData })
+                });
+                const result = await res.json();
+                tg.showAlert(result.message);
+            } catch (e) { tg.showAlert("Ошибка выполнения"); }
+            showLoading(false);
         }
+
+        // Init load
+        loadStats();
     </script>
 </body>
 </html>
