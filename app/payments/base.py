@@ -31,3 +31,30 @@ class MockProvider(BasePaymentProvider):
 
     async def check_status(self, transaction_id: str) -> str:
         return "success"
+
+class YooMoneyProvider(BasePaymentProvider):
+    def __init__(self, receiver: str):
+        self.receiver = receiver
+
+    async def create_payment(self, amount: float, description: str, metadata: dict) -> PaymentResult:
+        import uuid
+        label = f"sub_{uuid.uuid4().hex[:8]}"
+        # Standard YooMoney Quickpay URL
+        url = (
+            f"https://yoomoney.ru/quickpay/confirm.xml?"
+            f"receiver={self.receiver}&"
+            f"quickpay-form=button&"
+            f"targets={description}&"
+            f"paymentType=SB&"
+            f"sum={amount}&"
+            f"label={label}"
+        )
+        return PaymentResult(
+            success=True,
+            transaction_id=label,
+            payment_url=url
+        )
+
+    async def check_status(self, transaction_id: str) -> str:
+        # Verification requires HTTP notifications setup (not implemented here for simplicity)
+        return "pending"

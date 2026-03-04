@@ -22,7 +22,6 @@ async def get_db_session():
         yield session
 
 async def run_broadcast_task(bot, user_ids: list[int], text: str):
-    """Sends messages in background with basic rate-limiting."""
     success = 0
     failed = 0
     for uid in user_ids:
@@ -37,90 +36,49 @@ async def run_broadcast_task(bot, user_ids: list[int], text: str):
 @router.get("/store", response_class=HTMLResponse)
 @router.get("//store", response_class=HTMLResponse, include_in_schema=False)
 async def get_store(request: Request):
-    """Client TWA - Storefront"""
     return templates.TemplateResponse("client/store.html", {"request": request})
 
 @router.get("/admin", response_class=HTMLResponse)
 @router.get("//admin", response_class=HTMLResponse, include_in_schema=False)
 async def get_admin_crm(request: Request):
-    """Admin TWA - CRM Dashboard"""
     return templates.TemplateResponse("admin/crm.html", {"request": request})
 
 @router.get("/stats")
 async def get_stats(db: AsyncSession = Depends(get_db_session)):
-    """Returns dashboard statistics."""
     try:
         month_ago = datetime.now(timezone.utc) - timedelta(days=30)
-        revenue_stmt = select(func.sum(Payment.amount)).where(
-            Payment.status == "success",
-            Payment.created_at >= month_ago
-        )
-        revenue_res = await db.execute(revenue_stmt)
-        monthly_revenue = revenue_res.scalar() or 0
-
-        new_users_stmt = select(func.count(User.telegram_id)).where(User.created_at >= month_ago)
-        new_users_res = await db.execute(new_users_stmt)
+        rev_res = await db.execute(select(func.sum(Payment.amount)).where(Payment.status == "success", Payment.created_at >= month_ago))
+        monthly_revenue = rev_res.scalar() or 0
+        new_users_res = await db.execute(select(func.count(User.telegram_id)).where(User.created_at >= month_ago))
         new_users_count = new_users_res.scalar() or 0
-
-        active_subs_stmt = select(func.count(Subscription.id)).where(Subscription.is_active == True)
-        active_subs_res = await db.execute(active_subs_stmt)
+        active_subs_res = await db.execute(select(func.count(Subscription.id)).where(Subscription.is_active == True))
         active_count = active_subs_res.scalar() or 0
-
-        total_users_stmt = select(func.count(User.telegram_id))
-        total_users_res = await db.execute(total_users_stmt)
+        total_users_res = await db.execute(select(func.count(User.telegram_id)))
         total_count = total_users_res.scalar() or 0
-
-        return {
-            "monthly_revenue": f"{monthly_revenue:,.0f} ₽",
-            "new_users": f"+{new_users_count}",
-            "active_subscriptions": active_count,
-            "total_users": total_count,
-            "churn_rate": "2.5%"
-        }
+        return {"monthly_revenue": f"{monthly_revenue:,.0f} ₽", "new_users": f"+{new_users_count}", "active_subscriptions": active_count, "total_users": total_count, "churn_rate": "2.5%"}
     except Exception as e:
-        logger.error(f"Failed to fetch stats: {e}")
+        logger.error(f"Stats error: {e}")
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 @router.get("/tariffs")
 async def list_tariffs(db: AsyncSession = Depends(get_db_session)):
     stmt = select(Tariff).order_by(Tariff.id)
     result = await db.execute(stmt)
-    tariffs = result.scalars().all()
-    return tariffs
+    return result.scalars().all()
 
 @router.post("/tariffs")
 async def save_tariff(request: Request, db: AsyncSession = Depends(get_db_session)):
     data = await request.json()
-    tariff_id = data.get("id")
+    tid = data.get("id")
     try:
-        if tariff_id:
-            stmt = update(Tariff).where(Tariff.id == tariff_id).values(
-                name=data["name"],
-                description=data.get("description", ""),
-                price=float(data["price"]),
-                duration_days=int(data["duration_days"]),
-                is_trial=bool(data.get("is_trial", False)),
-                is_hidden=bool(data.get("is_hidden", False)),
-                require_email=bool(data.get("require_email", False)),
-                require_phone=bool(data.get("require_phone", False))
-            )
+        if tid:
+            stmt = update(Tariff).where(Tariff.id == tid).values(name=data["name"], description=data.get("description", ""), price=float(data["price"]), duration_days=int(data["duration_days"]), is_trial=bool(data.get("is_trial", False)), is_hidden=bool(data.get("is_hidden", False)), require_email=bool(data.get("require_email", False)), require_phone=bool(data.get("require_phone", False)))
             await db.execute(stmt)
         else:
-            new_tariff = Tariff(
-                name=data["name"],
-                description=data.get("description", ""),
-                price=float(data["price"]),
-                duration_days=int(data["duration_days"]),
-                is_trial=bool(data.get("is_trial", False)),
-                is_hidden=bool(data.get("is_hidden", False)),
-                require_email=bool(data.get("require_email", False)),
-                require_phone=bool(data.get("require_phone", False))
-            )
-            db.add(new_tariff)
+            db.add(Tariff(name=data["name"], description=data.get("description", ""), price=float(data["price"]), duration_days=int(data["duration_days"]), is_trial=bool(data.get("is_trial", False)), is_hidden=bool(data.get("is_hidden", False)), require_email=bool(data.get("require_email", False)), require_phone=bool(data.get("require_phone", False))))
         await db.commit()
         return {"status": "ok"}
     except Exception as e:
-        logger.error(f"Failed to save tariff: {e}")
         await db.rollback()
         return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
 
@@ -131,7 +89,6 @@ async def delete_tariff(tariff_id: int, db: AsyncSession = Depends(get_db_sessio
         await db.commit()
         return {"status": "ok"}
     except Exception as e:
-        logger.error(f"Failed to delete tariff {tariff_id}: {e}")
         await db.rollback()
         return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
 
@@ -142,26 +99,16 @@ async def list_users(db: AsyncSession = Depends(get_db_session)):
     users = result.scalars().all()
     user_list = []
     for u in users:
-        sub_stmt = select(Subscription).where(Subscription.user_id == u.telegram_id, Subscription.is_active == True)
-        sub_res = await db.execute(sub_stmt)
-        active_sub = sub_res.scalar_one_or_none()
-        user_list.append({
-            "telegram_id": u.telegram_id,
-            "username": u.username or f"ID: {u.telegram_id}",
-            "full_name": f"{u.first_name or ''} {u.last_name or ''}".strip(),
-            "has_active_sub": active_sub is not None,
-            "is_admin": u.is_admin
-        })
+        active_sub = (await db.execute(select(Subscription).where(Subscription.user_id == u.telegram_id, Subscription.is_active == True))).scalar_one_or_none()
+        user_list.append({"telegram_id": u.telegram_id, "username": u.username or f"ID: {u.telegram_id}", "full_name": f"{u.first_name or ''} {u.last_name or ''}".strip(), "has_active_sub": active_sub is not None, "is_admin": u.is_admin})
     return user_list
 
 @router.get("/settings")
 async def get_system_settings(db: AsyncSession = Depends(get_db_session)):
-    stmt = select(SystemSetting)
-    res = await db.execute(stmt)
+    res = await db.execute(select(SystemSetting))
     settings_res = res.scalars().all()
-    data = {"payment_mode": "mock", "yookassa_shop_id": "", "yookassa_secret_key": ""}
-    for s in settings_res:
-        data[s.key] = s.value
+    data = {"payment_mode": "mock", "yookassa_shop_id": "", "yookassa_secret_key": "", "yoomoney_receiver": ""}
+    for s in settings_res: data[s.key] = s.value
     return data
 
 @router.post("/settings")
@@ -169,21 +116,16 @@ async def update_system_settings(request: Request, db: AsyncSession = Depends(ge
     data = await request.json()
     try:
         for key, value in data.items():
-            stmt = select(SystemSetting).where(SystemSetting.key == key)
-            res = await db.execute(stmt)
-            setting = res.scalar_one_or_none()
-            if setting:
-                setting.value = str(value)
-            else:
-                db.add(SystemSetting(key=key, value=str(value)))
+            setting = (await db.execute(select(SystemSetting).where(SystemSetting.key == key))).scalar_one_or_none()
+            if setting: setting.value = str(value)
+            else: db.add(SystemSetting(key=key, value=str(value)))
         await db.commit()
         return {"status": "ok"}
     except Exception as e:
-        logger.error(f"Failed to update settings: {e}")
         await db.rollback()
         return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
 
-from app.payments.base import MockProvider
+from app.payments.base import MockProvider, YooMoneyProvider
 
 @router.post("/action")
 async def process_twa_action(request: Request, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db_session)):
@@ -197,22 +139,23 @@ async def process_twa_action(request: Request, background_tasks: BackgroundTasks
         if action == "buy":
             tariff_id = data.get("tariff_id")
             email = data.get("email")
-            s_stmt = select(SystemSetting).where(SystemSetting.key == "payment_mode")
-            s_res = await db.execute(s_stmt)
-            s_mode = s_res.scalar_one_or_none()
-            mode = s_mode.value if s_mode else "mock"
+            
+            settings_dict = {s.key: s.value for s in (await db.execute(select(SystemSetting))).scalars().all()}
+            mode = settings_dict.get("payment_mode", "mock")
 
-            t_stmt = select(Tariff).where(Tariff.id == tariff_id)
-            t_res = await db.execute(t_stmt)
-            tariff = t_res.scalar_one_or_none()
+            tariff = (await db.execute(select(Tariff).where(Tariff.id == tariff_id))).scalar_one_or_none()
             if not tariff: return JSONResponse({"status": "error", "message": "Тариф не найден"}, status_code=404)
 
             if mode == "yookassa":
-                 return JSONResponse({"status": "error", "message": "YooKassa требует настройки API. Используйте Mock режим."}, status_code=400)
+                 return JSONResponse({"status": "error", "message": "YooKassa в разработке. Используйте YooMoney или Mock."}, status_code=400)
+            elif mode == "yoomoney":
+                receiver = settings_dict.get("yoomoney_receiver")
+                if not receiver: return JSONResponse({"status": "error", "message": "Кошелек YooMoney не настроен"}, status_code=400)
+                provider = YooMoneyProvider(receiver=receiver)
+            else:
+                provider = MockProvider()
             
-            provider = MockProvider()
             pay_res = await provider.create_payment(tariff.price, f"Оплата: {tariff.name}", {"user_id": user_id, "tariff_id": tariff_id})
-            
             if pay_res.success:
                 db.add(Payment(user_id=user_id, amount=tariff.price, provider=mode, status="pending", transaction_id=pay_res.transaction_id))
                 if email: await db.execute(update(User).where(User.telegram_id == user_id).values(email=email))
@@ -223,15 +166,14 @@ async def process_twa_action(request: Request, background_tasks: BackgroundTasks
 
         admin_id = settings.bot.admin_ids[0] if settings.bot.admin_ids else None
         if action == "export_csv":
-            res = await db.execute(select(User))
-            users = res.scalars().all()
+            users = (await db.execute(select(User))).scalars().all()
             output = io.StringIO()
             writer = csv.writer(output)
-            writer.writerow(["ID", "Username", "First", "Last", "Email", "Phone", "Admin", "Date"])
-            for u in users: writer.writerow([u.telegram_id, u.username, u.first_name, u.last_name, u.email, u.phone, u.is_admin, u.created_at])
+            writer.writerow(["ID", "Username", "Email", "Admin", "Date"])
+            for u in users: writer.writerow([u.telegram_id, u.username, u.email, u.is_admin, u.created_at])
             csv_file = BufferedInputFile(output.getvalue().encode('utf-8'), filename="users.csv")
             await bot.send_document(admin_id, csv_file, caption="Экспорт пользователей")
-            return JSONResponse({"status": "ok", "message": "Файл отправлен в ЛС."})
+            return JSONResponse({"status": "ok", "message": "Файл отправлен."})
 
         if action == "broadcast":
             text = data.get("text")
@@ -240,8 +182,7 @@ async def process_twa_action(request: Request, background_tasks: BackgroundTasks
             if target == "all": stmt = select(User.telegram_id)
             elif target == "active": stmt = select(Subscription.user_id).where(Subscription.is_active == True).distinct()
             elif target == "expired": stmt = select(User.telegram_id).where(~User.telegram_id.in_(select(Subscription.user_id).where(Subscription.is_active == True)))
-            res = await db.execute(stmt)
-            user_ids = res.scalars().all()
+            user_ids = (await db.execute(stmt)).scalars().all()
             background_tasks.add_task(run_broadcast_task, bot, user_ids, text)
             return JSONResponse({"status": "ok", "message": f"Рассылка запущена ({len(user_ids)} чел)."})
             
