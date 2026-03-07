@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -40,6 +40,7 @@
         .action-btn { background: var(--bg); border: 1px solid var(--hint); color: var(--text); padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; }
         .action-btn.danger { border-color: var(--danger); color: var(--danger); }
         #loading-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.1); display: none; align-items: center; justify-content: center; z-index: 1000; font-size: 30px; }
+        .check-row { display: flex; gap: 12px; font-size: 13px; margin-bottom: 8px; }
     </style>
 </head>
 <body>
@@ -69,7 +70,7 @@
             <h2>Ресурсы</h2>
             <button class="nav-btn active" onclick="runAction('sync_resources')">Обновить 🔄</button>
         </div>
-        
+
         <div class="stat-card" style="margin-bottom:15px; text-align:left;">
             <label>Добавить по ID</label>
             <div style="display:flex; gap:8px;">
@@ -91,6 +92,12 @@
             <div class="form-group"><label>Название</label><input type="text" id="f-name"></div>
             <div class="form-group"><label>Цена</label><input type="number" id="f-price"></div>
             <div class="form-group"><label>Дней</label><input type="number" id="f-days"></div>
+            <div class="check-row">
+                <label><input type="checkbox" id="f-trial"> Триал</label>
+                <label><input type="checkbox" id="f-hidden"> Скрытый</label>
+                <label><input type="checkbox" id="f-req-email"> Требовать Email</label>
+                <label><input type="checkbox" id="f-req-phone"> Требовать телефон</label>
+            </div>
             <button class="btn" onclick="saveTariff()">Сохранить</button>
             <button class="btn" style="background:var(--hint)" onclick="closeTariffForm()">Отмена</button>
         </div>
@@ -101,7 +108,14 @@
     <div id="section-broadcast" class="section">
         <h2>Рассылка</h2>
         <div class="form-group"><label>Текст</label><textarea id="b-text" rows="4"></textarea></div>
-        <div class="form-group"><label>Кому</label><select id="b-target"><option value="all">Всем</option><option value="active">Активным</option></select></div>
+        <div class="form-group">
+            <label>Кому</label>
+            <select id="b-target">
+                <option value="all">Всем</option>
+                <option value="active">Активным</option>
+                <option value="expiring">Истекающим (3 дня)</option>
+            </select>
+        </div>
         <button class="btn" onclick="runAction('broadcast', {text:document.getElementById('b-text').value, target:document.getElementById('b-target').value})">Отправить</button>
     </div>
 
@@ -113,11 +127,24 @@
                 <option value="mock">Тестовый (Mock)</option>
                 <option value="yoomoney">YooMoney (P2P)</option>
                 <option value="yookassa">YooKassa (API)</option>
+                <option value="sberbank">Сбербанк (API)</option>
             </select>
         </div>
         <div id="yoomoney-fields" class="form-group">
             <label>Номер кошелька YooMoney</label>
             <input type="text" id="s-yoo-receiver" placeholder="41001XXXXXXXXXXXX">
+        </div>
+        <div id="yookassa-fields" class="form-group">
+            <label>YooKassa Shop ID</label>
+            <input type="text" id="s-yk-shop-id">
+            <label>YooKassa Secret Key</label>
+            <input type="password" id="s-yk-secret">
+        </div>
+        <div id="sberbank-fields" class="form-group">
+            <label>Сбербанк Username</label>
+            <input type="text" id="s-sb-username">
+            <label>Сбербанк Password</label>
+            <input type="password" id="s-sb-password">
         </div>
         <button class="btn" onclick="saveSettings()">Сохранить</button>
     </div>
@@ -125,23 +152,28 @@
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
-        function showLoading(s) { document.getElementById('loading-overlay').style.display = s?'flex':'none'; }
-        
+
+        function showLoading(s) {
+            document.getElementById('loading-overlay').style.display = s ? 'flex' : 'none';
+        }
+
         function toggleSettingsFields() {
             const mode = document.getElementById('s-payment-mode').value;
             document.getElementById('yoomoney-fields').style.display = (mode === 'yoomoney') ? 'block' : 'none';
+            document.getElementById('yookassa-fields').style.display = (mode === 'yookassa') ? 'block' : 'none';
+            document.getElementById('sberbank-fields').style.display = (mode === 'sberbank') ? 'block' : 'none';
         }
 
         async function switchSection(id, btn) {
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(`section-${id}`).classList.add('active');
-            if(btn) btn.classList.add('active');
-            if(id==='dashboard') loadStats();
-            if(id==='resources') loadResources();
-            if(id==='tariffs') loadTariffs();
-            if(id==='users') loadUsers();
-            if(id==='settings') loadSettings();
+            if (btn) btn.classList.add('active');
+            if (id === 'dashboard') loadStats();
+            if (id === 'resources') loadResources();
+            if (id === 'tariffs') loadTariffs();
+            if (id === 'users') loadUsers();
+            if (id === 'settings') loadSettings();
         }
 
         async function loadStats() {
@@ -149,17 +181,18 @@
             try {
                 const res = await fetch('/twa/stats');
                 const d = await res.json();
-                document.getElementById('stat-revenue').innerText = d.monthly_revenue;
-                document.getElementById('stat-new-users').innerText = d.new_users;
-                document.getElementById('stat-active').innerText = d.active_subscriptions;
-                document.getElementById('stat-total').innerText = d.total_users;
-            } catch(e) {}
+                document.getElementById('stat-revenue').innerText = d.monthly_revenue || '0 ₽';
+                document.getElementById('stat-new-users').innerText = d.new_users || '0';
+                document.getElementById('stat-active').innerText = d.active_subscriptions || '0';
+                document.getElementById('stat-total').innerText = d.total_users || '0';
+            } catch (e) {}
             showLoading(false);
         }
 
         async function loadResources() {
             showLoading(true);
-            const cont = document.getElementById('resources-list'); cont.innerHTML = "";
+            const cont = document.getElementById('resources-list');
+            cont.innerHTML = "";
             try {
                 const res = await fetch('/twa/managed-chats');
                 const chats = await res.json();
@@ -167,14 +200,14 @@
                     const item = document.createElement('div');
                     item.className = 'list-item';
                     if (!c.is_active) item.style.opacity = "0.5";
-                    let statusHtml = c.permissions_ok 
+                    let statusHtml = c.permissions_ok
                         ? `<div class="alert alert-success">✅ Права в порядке.</div>`
-                        : `<div class="alert alert-danger">⚠️ Нужно: ${c.missing_permissions}</div>`;
+                        : `<div class="alert alert-danger">⚠️ Нужно: ${c.missing_permissions || 'проверить права'}</div>`;
                     if (!c.is_active) statusHtml = `<div class="alert alert-danger">❌ Бот удален или нет прав администратора.</div>`;
                     item.innerHTML = `<div class="list-header"><div class="list-item-title">${c.title}</div><div class="list-item-subtitle">ID: ${c.chat_id}</div></div>${statusHtml}`;
                     cont.appendChild(item);
                 });
-            } catch(e) {}
+            } catch (e) {}
             showLoading(false);
         }
 
@@ -187,38 +220,45 @@
 
         async function loadTariffs() {
             showLoading(true);
-            const cont = document.getElementById('tariffs-list'); cont.innerHTML = "";
+            const cont = document.getElementById('tariffs-list');
+            cont.innerHTML = "";
             try {
                 const res = await fetch('/twa/tariffs');
                 const ts = await res.json();
                 ts.forEach(t => {
-                    const item = document.createElement('div'); item.className = 'list-item';
+                    const item = document.createElement('div');
+                    item.className = 'list-item';
                     item.innerHTML = `<div class="list-header"><div><b>${t.name}</b><br>${t.price} ₽</div>
                         <div style="display:flex; gap:5px;"><button class="action-btn" onclick='editTariff(${JSON.stringify(t)})'>🖉</button>
                         <button class="action-btn danger" onclick="deleteTariff(${t.id})">✕</button></div></div>`;
                     cont.appendChild(item);
                 });
-            } catch(e) {}
+            } catch (e) {}
             showLoading(false);
         }
 
         async function loadUsers() {
             showLoading(true);
-            const cont = document.getElementById('users-list'); cont.innerHTML = "";
+            const cont = document.getElementById('users-list');
+            cont.innerHTML = "";
             try {
                 const res = await fetch('/twa/users');
                 const us = await res.json();
                 us.forEach(u => {
-                    const item = document.createElement('div'); 
+                    const item = document.createElement('div');
                     item.className = 'list-item' + (u.is_admin ? ' admin' : '');
                     let actions = `<button class="action-btn danger" onclick="kickUser(${u.telegram_id}, '${u.username}')">KICK</button>`;
-                    if (u.is_super) actions = `<span style="font-size:10px; color:var(--hint)">SUPER ADMIN</span>`;
-                    else if (u.is_admin) actions += `<button class="action-btn" onclick="runAction('demote_admin', {target_id: ${u.telegram_id}})">СНЯТЬ АДМИНА</button>`;
-                    else actions += `<button class="action-btn" onclick="runAction('promote_admin', {target_id: ${u.telegram_id}})">СДЕЛАТЬ АДМИНОМ</button>`;
-                    item.innerHTML = `<div class="list-header"><div class="list-item-title">${u.is_admin?'👑 ':''}${u.username}</div><div>${u.has_active_sub?'✅':'❌'}</div></div><div style="display:flex; gap:8px;">${actions}</div>`;
+                    if (u.is_super) {
+                        actions = `<span style="font-size:10px; color:var(--hint)">SUPER ADMIN</span>`;
+                    } else if (u.is_admin) {
+                        actions += `<button class="action-btn" onclick="runAction('demote_admin', {target_id: ${u.telegram_id}})">СНЯТЬ АДМИНА</button>`;
+                    } else {
+                        actions += `<button class="action-btn" onclick="runAction('promote_admin', {target_id: ${u.telegram_id}})">СДЕЛАТЬ АДМИНОМ</button>`;
+                    }
+                    item.innerHTML = `<div class="list-header"><div class="list-item-title">${u.is_admin ? '👑 ' : ''}${u.username}</div><div>${u.has_active_sub ? '✅' : '❌'}</div></div><div style="display:flex; gap:8px;">${actions}</div>`;
                     cont.appendChild(item);
                 });
-            } catch(e) {}
+            } catch (e) {}
             showLoading(false);
         }
 
@@ -234,41 +274,74 @@
                 const d = await res.json();
                 document.getElementById('s-payment-mode').value = d.payment_mode || 'mock';
                 document.getElementById('s-yoo-receiver').value = d.yoomoney_receiver || '';
+                document.getElementById('s-yk-shop-id').value = d.yookassa_shop_id || '';
+                document.getElementById('s-yk-secret').value = d.yookassa_secret_key || '';
+                document.getElementById('s-sb-username').value = d.sberbank_username || '';
+                document.getElementById('s-sb-password').value = d.sberbank_password || '';
                 toggleSettingsFields();
-            } catch(e) {}
+            } catch (e) {}
             showLoading(false);
         }
 
         async function saveSettings() {
             showLoading(true);
-            const data = { payment_mode: document.getElementById('s-payment-mode').value, yoomoney_receiver: document.getElementById('s-yoo-receiver').value };
-            await fetch('/twa/settings', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+            const data = {
+                payment_mode: document.getElementById('s-payment-mode').value,
+                yoomoney_receiver: document.getElementById('s-yoo-receiver').value,
+                yookassa_shop_id: document.getElementById('s-yk-shop-id').value,
+                yookassa_secret_key: document.getElementById('s-yk-secret').value,
+                sberbank_username: document.getElementById('s-sb-username').value,
+                sberbank_password: document.getElementById('s-sb-password').value
+            };
+            await fetch('/twa/settings', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
             tg.showAlert("Сохранено!");
             showLoading(false);
         }
 
-        function openTariffForm() { document.getElementById('tariff-form').style.display='block'; }
-        function closeTariffForm() { document.getElementById('tariff-form').style.display='none'; }
+        function openTariffForm() {
+            document.getElementById('tariff-form').style.display = 'block';
+        }
+
+        function closeTariffForm() {
+            document.getElementById('tariff-form').style.display = 'none';
+        }
+
         async function saveTariff() {
-            const data = { name: document.getElementById('f-name').value, price: document.getElementById('f-price').value, duration_days: document.getElementById('f-days').value };
+            const data = {
+                id: document.getElementById('f-id').value || null,
+                name: document.getElementById('f-name').value,
+                price: document.getElementById('f-price').value,
+                duration_days: document.getElementById('f-days').value,
+                is_trial: document.getElementById('f-trial').checked,
+                is_hidden: document.getElementById('f-hidden').checked,
+                require_email: document.getElementById('f-req-email').checked,
+                require_phone: document.getElementById('f-req-phone').checked
+            };
             showLoading(true);
-            await fetch('/twa/tariffs', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
-            closeTariffForm(); loadTariffs(); showLoading(false);
+            await fetch('/twa/tariffs', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+            closeTariffForm();
+            loadTariffs();
+            showLoading(false);
         }
 
         async function deleteTariff(id) {
-            if(confirm("Удалить?")) {
+            if (confirm("Удалить?")) {
                 showLoading(true);
-                await fetch(`/twa/tariffs/${id}`, { method:'DELETE' });
-                loadTariffs(); showLoading(false);
+                await fetch(`/twa/tariffs/${id}`, { method: 'DELETE' });
+                loadTariffs();
+                showLoading(false);
             }
         }
 
-        async function runAction(action, data={}) {
+        async function runAction(action, data = {}) {
             showLoading(true);
-            const res = await fetch('/twa/action', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action, ...data}) });
+            const res = await fetch('/twa/action', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action, ...data})
+            });
             const r = await res.json();
-            tg.showAlert(r.message);
+            tg.showAlert(r.message || 'Готово');
             if (action === 'sync_resources' || action === 'add_resource') loadResources();
             if (['promote_admin', 'demote_admin', 'kick_user'].includes(action)) loadUsers();
             showLoading(false);
@@ -280,6 +353,10 @@
             document.getElementById('f-name').value = t.name;
             document.getElementById('f-price').value = t.price;
             document.getElementById('f-days').value = t.duration_days;
+            document.getElementById('f-trial').checked = !!t.is_trial;
+            document.getElementById('f-hidden').checked = !!t.is_hidden;
+            document.getElementById('f-req-email').checked = !!t.require_email;
+            document.getElementById('f-req-phone').checked = !!t.require_phone;
         }
 
         loadStats();

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -25,6 +25,7 @@
         .tariff-price { font-size: 20px; font-weight: 800; color: var(--link); margin: 8px 0; }
         .btn { display: block; width: 100%; padding: 14px; text-align: center; background: var(--button); color: var(--button-text); border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; }
         .input-field { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ccc; background: var(--bg); color: var(--text); box-sizing: border-box; margin-bottom: 10px; }
+        .consent { font-size: 13px; margin-bottom: 10px; display: flex; align-items: flex-start; gap: 8px; }
     </style>
 </head>
 <body>
@@ -45,7 +46,6 @@
         tg.expand();
 
         async function init() {
-            // Load resources
             try {
                 const rRes = await fetch('/twa/managed-chats');
                 const chats = await rRes.json();
@@ -61,7 +61,6 @@
                 }
             } catch(e) {}
 
-            // Load tariffs
             try {
                 const tRes = await fetch('/twa/tariffs');
                 const tariffs = await tRes.json();
@@ -73,21 +72,40 @@
                         <div class="tariff-name">${t.name}</div>
                         <div class="tariff-price">${t.price > 0 ? t.price + ' ₽' : 'Бесплатно'}</div>
                         ${t.require_email ? '<input type="email" id="email_'+t.id+'" class="input-field" placeholder="Email для чека">' : ''}
-                        <button class="btn" onclick="buyTariff(${t.id}, ${t.require_email})">Оформить</button>
+                        ${t.require_phone ? '<input type="tel" id="phone_'+t.id+'" class="input-field" placeholder="Телефон">' : ''}
+                        <label class="consent"><input type="checkbox" id="consent_${t.id}"> <span>Я принимаю условия оферты и согласен(на) на обработку данных.</span></label>
+                        <button class="btn" onclick="buyTariff(${t.id}, ${t.require_email}, ${t.require_phone})">Оформить</button>
                     `;
                     container.appendChild(card);
                 });
             } catch(e) {}
         }
 
-        async function buyTariff(id, reqEmail) {
+        async function buyTariff(id, reqEmail, reqPhone) {
+            const consent = document.getElementById(`consent_${id}`);
+            if (!consent || !consent.checked) {
+                tg.showAlert('Нужно принять условия оферты');
+                return;
+            }
+
             const data = { action: "buy", tariff_id: id, user_id: tg.initDataUnsafe.user?.id };
             if (reqEmail) {
                 const email = document.getElementById(`email_${id}`).value;
-                if (!email) { tg.showAlert("Введите Email"); return; }
+                if (!email) {
+                    tg.showAlert("Введите Email");
+                    return;
+                }
                 data.email = email;
             }
-            
+            if (reqPhone) {
+                const phone = document.getElementById(`phone_${id}`).value;
+                if (!phone) {
+                    tg.showAlert("Введите телефон");
+                    return;
+                }
+                data.phone = phone;
+            }
+
             tg.MainButton.showProgress();
             try {
                 const res = await fetch('/twa/action', {
@@ -96,17 +114,48 @@
                     body: JSON.stringify(data)
                 });
                 const r = await res.json();
-                if (r.status === 'ok') {
-                    tg.showAlert(r.message);
-                    tg.close();
-                } else {
-                    tg.showAlert(r.message);
+
+                if (r.status !== 'ok') {
+                    tg.showAlert(r.message || 'Ошибка операции');
+                    return;
                 }
-            } catch(e) { tg.showAlert("Ошибка"); }
-            tg.MainButton.hideProgress();
+
+                if (r.transaction_id && r.provider && r.tariff_id) {
+                    tg.showAlert('Платеж создан. Ожидаем подтверждение...');
+                    for (let attempt = 0; attempt < 6; attempt++) {
+                        await new Promise(resolve => setTimeout(resolve, 5000));
+                        const confirmRes = await fetch('/twa/payments/confirm', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                transaction_id: r.transaction_id,
+                                user_id: data.user_id,
+                                tariff_id: r.tariff_id,
+                                provider: r.provider
+                            })
+                        });
+                        const confirmData = await confirmRes.json();
+                        if (confirmData.payment_status === 'success') {
+                            tg.showAlert(confirmData.message || 'Оплата подтверждена');
+                            tg.close();
+                            return;
+                        }
+                    }
+                    tg.showAlert('Платеж пока не подтвержден. Доступ будет выдан после подтверждения.');
+                    return;
+                }
+
+                tg.showAlert(r.message || 'Операция завершена');
+                tg.close();
+            } catch(e) {
+                tg.showAlert("Ошибка");
+            } finally {
+                tg.MainButton.hideProgress();
+            }
         }
 
         init();
     </script>
 </body>
 </html>
+

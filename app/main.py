@@ -1,4 +1,4 @@
-from contextlib import asynccontextmanager
+﻿from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from loguru import logger
@@ -77,3 +77,4 @@ async def telegram_webhook(request: Request):
     except Exception as e:
          logger.error(f"Update error: {e}")
     return {"status": "ok"}
+

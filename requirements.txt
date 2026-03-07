@@ -1,4 +1,4 @@
-fastapi
+﻿fastapi
 uvicorn[standard]
 aiogram
 sqlalchemy
@@ -10,3 +10,4 @@ pydantic-settings
 loguru
 python-dotenv
 cryptography
+httpx
