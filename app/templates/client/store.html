@@ -3,154 +3,311 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Витрина тарифов</title>
+    <title>Boterator Store</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
-            --bg: var(--tg-theme-bg-color, #ffffff);
-            --text: var(--tg-theme-text-color, #000000);
-            --hint: var(--tg-theme-hint-color, #888);
-            --link: var(--tg-theme-link-color, #2481cc);
-            --button: var(--tg-theme-button-color, #2481cc);
-            --button-text: var(--tg-theme-button-text-color, #ffffff);
-            --secondary-bg: var(--tg-theme-secondary-bg-color, #f4f4f5);
+            --bg: linear-gradient(180deg, #f6efe5 0%, #efe5d4 100%);
+            --card: rgba(255, 250, 243, 0.92);
+            --text: #1f1a14;
+            --muted: #695f54;
+            --line: rgba(57, 44, 29, 0.12);
+            --accent: #b54f2a;
+            --accent-2: #2c7a67;
+            --danger: #af3e37;
+            --shadow: 0 18px 45px rgba(74, 54, 32, 0.12);
         }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 16px; margin: 0; }
-        .header { margin-bottom: 20px; }
-        .resources-box { background: var(--secondary-bg); padding: 12px; border-radius: 10px; margin-bottom: 20px; font-size: 14px; }
-        .resources-box h3 { margin: 0 0 8px; font-size: 14px; color: var(--hint); text-transform: uppercase; }
-        .res-item { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-        .tariff-card { border-radius: 12px; padding: 16px; margin-bottom: 16px; background: var(--secondary-bg); border: 1px solid rgba(0,0,0,0.05); }
-        .tariff-name { font-size: 18px; font-weight: bold; }
-        .tariff-price { font-size: 20px; font-weight: 800; color: var(--link); margin: 8px 0; }
-        .btn { display: block; width: 100%; padding: 14px; text-align: center; background: var(--button); color: var(--button-text); border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; }
-        .input-field { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ccc; background: var(--bg); color: var(--text); box-sizing: border-box; margin-bottom: 10px; }
-        .consent { font-size: 13px; margin-bottom: 10px; display: flex; align-items: flex-start; gap: 8px; }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            padding: 20px 16px 40px;
+            font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+            color: var(--text);
+            background: var(--bg);
+        }
+        .shell {
+            max-width: 860px;
+            margin: 0 auto;
+        }
+        .hero {
+            padding: 22px;
+            border-radius: 28px;
+            background: linear-gradient(135deg, rgba(255, 251, 246, 0.98), rgba(245, 228, 205, 0.92));
+            box-shadow: var(--shadow);
+            margin-bottom: 18px;
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::after {
+            content: "";
+            position: absolute;
+            inset: auto -30px -40px auto;
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(181,79,42,0.18), rgba(181,79,42,0));
+        }
+        .eyebrow { text-transform: uppercase; letter-spacing: 0.12em; font-size: 12px; color: var(--muted); }
+        h1 { margin: 8px 0 10px; font-size: 30px; line-height: 1.05; }
+        .hero p { margin: 0; color: var(--muted); max-width: 560px; }
+        .panel {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 22px;
+            box-shadow: var(--shadow);
+            padding: 18px;
+            margin-bottom: 16px;
+            backdrop-filter: blur(10px);
+        }
+        .status { display: none; padding: 12px 14px; border-radius: 14px; margin-bottom: 16px; font-size: 14px; }
+        .status.show { display: block; }
+        .status.info { background: rgba(44,122,103,0.1); color: #184f43; }
+        .status.error { background: rgba(175,62,55,0.1); color: var(--danger); }
+        .resource-list, .tariff-grid { display: grid; gap: 14px; }
+        .resource-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            border-radius: 999px;
+            background: rgba(44,122,103,0.08);
+            color: #184f43;
+            font-size: 14px;
+            margin: 0 8px 8px 0;
+        }
+        .tariff-card {
+            border: 1px solid var(--line);
+            border-radius: 24px;
+            padding: 18px;
+            background: rgba(255,255,255,0.66);
+            display: grid;
+            gap: 12px;
+        }
+        .tariff-top { display: flex; justify-content: space-between; gap: 14px; align-items: start; }
+        .tariff-name { font-size: 22px; font-weight: 700; }
+        .tariff-price { font-size: 20px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+        .tariff-desc { color: var(--muted); line-height: 1.45; }
+        .meta { display: flex; flex-wrap: wrap; gap: 8px; }
+        .chip {
+            padding: 8px 10px;
+            border-radius: 999px;
+            background: rgba(181,79,42,0.08);
+            color: #7f3a1d;
+            font-size: 12px;
+        }
+        .input {
+            width: 100%;
+            border: 1px solid rgba(57, 44, 29, 0.14);
+            border-radius: 14px;
+            padding: 12px 14px;
+            background: rgba(255,255,255,0.86);
+            color: var(--text);
+            font: inherit;
+        }
+        .consent { display: flex; gap: 10px; align-items: start; font-size: 13px; color: var(--muted); }
+        .btn {
+            border: none;
+            border-radius: 16px;
+            padding: 14px 18px;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            background: linear-gradient(135deg, var(--accent), #d0703f);
+            color: #fff9f3;
+        }
+        .btn[disabled] { opacity: 0.6; cursor: wait; }
+        .empty { color: var(--muted); font-size: 14px; }
+        a { color: var(--accent); }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h2>Подписка</h2>
-        <p>Получите доступ к закрытым ресурсам</p>
-    </div>
+    <div class="shell">
+        <div class="hero">
+            <div class="eyebrow">Boterator</div>
+            <h1>Подписка на закрытые ресурсы без лишних шагов</h1>
+            <p>Выберите тариф, подтвердите условия и получите доступ к нужным чатам. Проверка идет на сервере, без ручного ввода вашего Telegram ID.</p>
+        </div>
 
-    <div id="managed-resources" class="resources-box" style="display:none;">
-        <h3>Вы получите доступ к:</h3>
-        <div id="resources-list"></div>
-    </div>
+        <div id="status" class="status"></div>
 
-    <div id="tariffs-container"></div>
+        <div class="panel" id="resources-panel" style="display:none;">
+            <div class="eyebrow">Ресурсы</div>
+            <h2 style="margin:8px 0 14px;">Что доступно в системе</h2>
+            <div id="resources-list"></div>
+        </div>
+
+        <div class="panel">
+            <div class="eyebrow">Тарифы</div>
+            <h2 style="margin:8px 0 14px;">Подберите свой формат доступа</h2>
+            <div id="tariffs" class="tariff-grid"></div>
+            <div id="empty" class="empty" style="display:none;">Сейчас нет доступных тарифов.</div>
+        </div>
+    </div>
 
     <script>
         const tg = window.Telegram.WebApp;
+        tg.ready();
         tg.expand();
+
+        let profile = null;
+        let tariffs = [];
+
+        function authHeaders() {
+            return {
+                "Content-Type": "application/json",
+                "X-Telegram-Init-Data": tg.initData || ""
+            };
+        }
+
+        function showStatus(message, type = "info") {
+            const box = document.getElementById("status");
+            box.className = `status show ${type}`;
+            box.textContent = message;
+        }
+
+        function hideStatus() {
+            const box = document.getElementById("status");
+            box.className = "status";
+            box.textContent = "";
+        }
+
+        async function fetchJson(url, options = {}) {
+            const response = await fetch(url, {
+                ...options,
+                headers: {
+                    ...(options.headers || {}),
+                    "X-Telegram-Init-Data": tg.initData || ""
+                }
+            });
+            const data = await response.json();
+            if (!response.ok || data.status === "error") {
+                throw new Error(data.message || "Ошибка запроса");
+            }
+            return data;
+        }
+
+        function consentText() {
+            const offer = profile?.offer_url ? `<a href="${profile.offer_url}" target="_blank">оферты</a>` : "оферты";
+            const privacy = profile?.privacy_url ? ` и <a href="${profile.privacy_url}" target="_blank">политики</a>` : "";
+            return `Я принимаю условия ${offer}${privacy} и согласен(на) на обработку данных.`;
+        }
+
+        function renderResources(chats) {
+            const panel = document.getElementById("resources-panel");
+            const list = document.getElementById("resources-list");
+            list.innerHTML = "";
+            if (!chats.length) {
+                panel.style.display = "none";
+                return;
+            }
+            panel.style.display = "block";
+            chats.filter(chat => chat.is_active).forEach(chat => {
+                const pill = document.createElement("div");
+                pill.className = "resource-pill";
+                pill.innerHTML = `<span>${chat.protect_content_enabled ? "🔒" : "•"}</span><span>${chat.title}</span>`;
+                list.appendChild(pill);
+            });
+        }
+
+        function renderTariffs() {
+            const container = document.getElementById("tariffs");
+            container.innerHTML = "";
+            document.getElementById("empty").style.display = tariffs.length ? "none" : "block";
+            tariffs.forEach(tariff => {
+                const card = document.createElement("article");
+                card.className = "tariff-card";
+                card.innerHTML = `
+                    <div class="tariff-top">
+                        <div>
+                            <div class="tariff-name">${tariff.name}</div>
+                            <div class="tariff-desc">${tariff.description || "Описание будет добавлено администратором."}</div>
+                        </div>
+                        <div class="tariff-price">${tariff.price > 0 ? tariff.price + " RUB" : "Бесплатно"}</div>
+                    </div>
+                    <div class="meta">
+                        <span class="chip">${tariff.duration_days === 0 ? "Без срока" : tariff.duration_days + " дней"}</span>
+                        ${tariff.is_trial ? '<span class="chip">Триал</span>' : ''}
+                        ${tariff.require_email ? '<span class="chip">Нужен email</span>' : ''}
+                        ${tariff.require_phone ? '<span class="chip">Нужен телефон</span>' : ''}
+                    </div>
+                    ${tariff.require_email ? `<input class="input" type="email" id="email-${tariff.id}" placeholder="Email для чека" value="${profile?.user?.email || ""}">` : ''}
+                    ${tariff.require_phone ? `<input class="input" type="tel" id="phone-${tariff.id}" placeholder="Телефон" value="${profile?.user?.phone || ""}">` : ''}
+                    <label class="consent"><input type="checkbox" id="consent-${tariff.id}"><span>${consentText()}</span></label>
+                    <button class="btn" id="buy-${tariff.id}" onclick="buyTariff(${tariff.id})">${tariff.is_trial ? "Активировать" : "Оформить"}</button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function buyTariff(id) {
+            hideStatus();
+            const tariff = tariffs.find(item => item.id === id);
+            const button = document.getElementById(`buy-${id}`);
+            const consent = document.getElementById(`consent-${id}`);
+            if (!consent?.checked) {
+                showStatus("Нужно принять условия оферты перед покупкой.", "error");
+                return;
+            }
+            const payload = { action: "buy", tariff_id: id, init_data: tg.initData };
+            if (tariff.require_email) payload.email = document.getElementById(`email-${id}`).value.trim();
+            if (tariff.require_phone) payload.phone = document.getElementById(`phone-${id}`).value.trim();
+            button.disabled = true;
+            try {
+                const result = await fetchJson("/twa/action", {
+                    method: "POST",
+                    headers: authHeaders(),
+                    body: JSON.stringify(payload)
+                });
+                showStatus(result.message || "Операция выполнена");
+                if (result.payment_url) {
+                    tg.openLink(result.payment_url);
+                }
+                if (result.transaction_id) {
+                    await pollPayment(result.transaction_id);
+                } else {
+                    tg.HapticFeedback?.notificationOccurred("success");
+                }
+            } catch (error) {
+                showStatus(error.message, "error");
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        async function pollPayment(transactionId) {
+            for (let attempt = 0; attempt < 12; attempt += 1) {
+                await new Promise(resolve => setTimeout(resolve, 5000));
+                const result = await fetchJson("/twa/payments/confirm", {
+                    method: "POST",
+                    headers: authHeaders(),
+                    body: JSON.stringify({ transaction_id: transactionId, init_data: tg.initData })
+                });
+                if (result.payment_status === "success") {
+                    showStatus(result.message || "Платеж подтвержден");
+                    tg.HapticFeedback?.notificationOccurred("success");
+                    return;
+                }
+                if (result.payment_status === "failed") {
+                    showStatus("Платеж не подтвержден. Проверьте оплату или обратитесь администратору.", "error");
+                    return;
+                }
+            }
+            showStatus("Платеж пока не подтвержден. Если это YooMoney, его подтвердит администратор вручную.");
+        }
 
         async function init() {
             try {
-                const rRes = await fetch('/twa/managed-chats');
-                const chats = await rRes.json();
-                if (chats.length > 0) {
-                    document.getElementById('managed-resources').style.display = 'block';
-                    const list = document.getElementById('resources-list');
-                    chats.forEach(c => {
-                        const div = document.createElement('div');
-                        div.className = 'res-item';
-                        div.innerHTML = `🔹 <b>${c.title}</b>`;
-                        list.appendChild(div);
-                    });
-                }
-            } catch(e) {}
-
-            try {
-                const tRes = await fetch('/twa/tariffs');
-                const tariffs = await tRes.json();
-                const container = document.getElementById('tariffs-container');
-                tariffs.filter(t => !t.is_hidden).forEach(t => {
-                    const card = document.createElement('div');
-                    card.className = 'tariff-card';
-                    card.innerHTML = `
-                        <div class="tariff-name">${t.name}</div>
-                        <div class="tariff-price">${t.price > 0 ? t.price + ' ₽' : 'Бесплатно'}</div>
-                        ${t.require_email ? '<input type="email" id="email_'+t.id+'" class="input-field" placeholder="Email для чека">' : ''}
-                        ${t.require_phone ? '<input type="tel" id="phone_'+t.id+'" class="input-field" placeholder="Телефон">' : ''}
-                        <label class="consent"><input type="checkbox" id="consent_${t.id}"> <span>Я принимаю условия оферты и согласен(на) на обработку данных.</span></label>
-                        <button class="btn" onclick="buyTariff(${t.id}, ${t.require_email}, ${t.require_phone})">Оформить</button>
-                    `;
-                    container.appendChild(card);
-                });
-            } catch(e) {}
-        }
-
-        async function buyTariff(id, reqEmail, reqPhone) {
-            const consent = document.getElementById(`consent_${id}`);
-            if (!consent || !consent.checked) {
-                tg.showAlert('Нужно принять условия оферты');
-                return;
-            }
-
-            const data = { action: "buy", tariff_id: id, user_id: tg.initDataUnsafe.user?.id };
-            if (reqEmail) {
-                const email = document.getElementById(`email_${id}`).value;
-                if (!email) {
-                    tg.showAlert("Введите Email");
-                    return;
-                }
-                data.email = email;
-            }
-            if (reqPhone) {
-                const phone = document.getElementById(`phone_${id}`).value;
-                if (!phone) {
-                    tg.showAlert("Введите телефон");
-                    return;
-                }
-                data.phone = phone;
-            }
-
-            tg.MainButton.showProgress();
-            try {
-                const res = await fetch('/twa/action', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                const r = await res.json();
-
-                if (r.status !== 'ok') {
-                    tg.showAlert(r.message || 'Ошибка операции');
-                    return;
-                }
-
-                if (r.transaction_id && r.provider && r.tariff_id) {
-                    tg.showAlert('Платеж создан. Ожидаем подтверждение...');
-                    for (let attempt = 0; attempt < 6; attempt++) {
-                        await new Promise(resolve => setTimeout(resolve, 5000));
-                        const confirmRes = await fetch('/twa/payments/confirm', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                transaction_id: r.transaction_id,
-                                user_id: data.user_id,
-                                tariff_id: r.tariff_id,
-                                provider: r.provider
-                            })
-                        });
-                        const confirmData = await confirmRes.json();
-                        if (confirmData.payment_status === 'success') {
-                            tg.showAlert(confirmData.message || 'Оплата подтверждена');
-                            tg.close();
-                            return;
-                        }
-                    }
-                    tg.showAlert('Платеж пока не подтвержден. Доступ будет выдан после подтверждения.');
-                    return;
-                }
-
-                tg.showAlert(r.message || 'Операция завершена');
-                tg.close();
-            } catch(e) {
-                tg.showAlert("Ошибка");
-            } finally {
-                tg.MainButton.hideProgress();
+                profile = await fetchJson("/twa/me", { headers: authHeaders() });
+                const [resources, tariffsData] = await Promise.all([
+                    fetchJson("/twa/managed-chats", { headers: authHeaders() }),
+                    fetchJson("/twa/tariffs", { headers: authHeaders() })
+                ]);
+                tariffs = tariffsData;
+                renderResources(resources);
+                renderTariffs();
+            } catch (error) {
+                showStatus(error.message, "error");
             }
         }
 
@@ -158,4 +315,3 @@
     </script>
 </body>
 </html>
-

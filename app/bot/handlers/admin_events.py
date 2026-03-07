@@ -1,76 +1,69 @@
-from aiogram import Router, types, F
+﻿from aiogram import Router, types
 from aiogram.enums import ChatMemberStatus
-from sqlalchemy import select, delete
-from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
+from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import ManagedChat
 
 router = Router()
 
-def check_bot_permissions(member: types.ChatMemberAdministrator | types.ChatMemberOwner):
-    """Checks if the bot has all required permissions to manage the chat."""
+
+def check_bot_permissions(member: types.ChatMemberAdministrator | types.ChatMemberOwner) -> list[str]:
     missing = []
-    
-    # Critical for kicking non-paying users
-    if not member.can_restrict_members:
-        missing.append("Исключение участников (can_restrict_members)")
-    
-    # Critical for generating invite links
-    if not member.can_invite_users:
-        missing.append("Пригласительные ссылки (can_invite_users)")
-        
+    if not getattr(member, "can_restrict_members", False):
+        missing.append("Исключение участников")
+    if not getattr(member, "can_invite_users", False):
+        missing.append("Пригласительные ссылки")
     return missing
 
+
 @router.my_chat_member()
-async def on_my_chat_member_update(update: types.ChatMemberUpdated, session: AsyncSession):
-    """Triggered when bot's status in a chat changes."""
+async def on_my_chat_member_update(update: types.ChatMemberUpdated, session: AsyncSession | None):
+    if not session:
+        logger.warning("Skipping managed chat sync because DB session is unavailable.")
+        return
+
     chat = update.chat
     new_member = update.new_chat_member
-    new_status = new_member.status
-    
-    logger.info(f"Bot status updated in {chat.type} '{chat.title}' ({chat.id}): {new_status}")
+    logger.info(f"Bot status updated in {chat.type} '{chat.title}' ({chat.id}): {new_member.status}")
 
-    if new_status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR]:
-        # Bot is admin, check permissions
+    if new_member.status in {ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR}:
         missing = check_bot_permissions(new_member)
-        permissions_ok = len(missing) == 0
-        missing_text = ", ".join(missing) if missing else None
-
-        stmt = select(ManagedChat).where(ManagedChat.chat_id == chat.id)
-        res = await session.execute(stmt)
-        managed_chat = res.scalar_one_or_none()
-        
         invite_link = None
-        if permissions_ok:
+        if not missing:
             try:
                 link_obj = await update.bot.create_chat_invite_link(chat.id, name="Boterator Auto Link")
                 invite_link = link_obj.invite_link
-            except Exception as e:
-                logger.warning(f"Could not create invite link for {chat.id}: {e}")
+            except Exception as exc:
+                logger.warning(f"Could not create invite link for {chat.id}: {exc}")
 
-        if managed_chat:
-            managed_chat.title = chat.title or "Untitled"
-            managed_chat.is_active = True
-            managed_chat.permissions_ok = permissions_ok
-            managed_chat.missing_permissions = missing_text
+        current = (await session.execute(select(ManagedChat).where(ManagedChat.chat_id == chat.id))).scalar_one_or_none()
+        protect_content_enabled = bool(getattr(chat, "has_protected_content", False))
+        if current:
+            current.title = chat.title or "Untitled"
+            current.is_active = True
+            current.permissions_ok = len(missing) == 0
+            current.missing_permissions = ", ".join(missing) if missing else None
+            current.protect_content_enabled = protect_content_enabled
             if invite_link:
-                managed_chat.invite_link = invite_link
+                current.invite_link = invite_link
         else:
-            new_managed = ManagedChat(
-                chat_id=chat.id,
-                title=chat.title or "Untitled",
-                invite_link=invite_link,
-                is_active=True,
-                permissions_ok=permissions_ok,
-                missing_permissions=missing_text
+            session.add(
+                ManagedChat(
+                    chat_id=chat.id,
+                    title=chat.title or "Untitled",
+                    invite_link=invite_link,
+                    is_active=True,
+                    permissions_ok=len(missing) == 0,
+                    missing_permissions=", ".join(missing) if missing else None,
+                    protect_content_enabled=protect_content_enabled,
+                )
             )
-            session.add(new_managed)
-        
-        logger.info(f"Managed chat updated: {chat.title}. Permissions OK: {permissions_ok}")
+        await session.commit()
+        return
 
-    elif new_status in [ChatMemberStatus.LEFT, ChatMemberStatus.KICKED, ChatMemberStatus.MEMBER]:
+    if new_member.status in {ChatMemberStatus.LEFT, ChatMemberStatus.KICKED, ChatMemberStatus.MEMBER}:
         await session.execute(delete(ManagedChat).where(ManagedChat.chat_id == chat.id))
+        await session.commit()
         logger.info(f"Removed managed chat: {chat.title}")
-
-    await session.commit()

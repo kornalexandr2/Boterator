@@ -1,76 +1,158 @@
+﻿import json
 import asyncio
-from datetime import datetime, timezone, timedelta
-from loguru import logger
-from sqlalchemy import select, update
-from app.database.session import async_session
-from app.database.models import Subscription, User
+from datetime import timedelta
+
 from aiogram import Bot
+from loguru import logger
+from sqlalchemy import select
+
+from app.api.common import activate_user_access, resolve_runtime_settings, utcnow
+from app.database.models import Payment, Subscription, Tariff, User
+from app.database.session import async_session
+from app.config import settings
+from app.payments.base import build_payment_provider
+from app.services.access import revoke_user_from_inaccessible_chats
+
+
+async def _notify_expiring(bot: Bot, session) -> None:
+    now = utcnow()
+    stmt = select(Subscription).where(
+        Subscription.is_active.is_(True),
+        Subscription.end_date.is_not(None),
+        Subscription.end_date <= now + timedelta(days=4),
+    )
+    subscriptions = (await session.execute(stmt)).scalars().all()
+    for sub in subscriptions:
+        if not sub.end_date:
+            continue
+        days_left = (sub.end_date.date() - now.date()).days
+        if days_left not in {3, 1, 0}:
+            continue
+        field_name = {3: "notified_3d_at", 1: "notified_1d_at", 0: "notified_0d_at"}[days_left]
+        if getattr(sub, field_name):
+            continue
+        try:
+            await bot.send_message(sub.user_id, f"Подписка истекает через {days_left} дн. Не забудьте продлить доступ.")
+            setattr(sub, field_name, now)
+        except Exception as exc:
+            logger.warning(f"Failed to notify user {sub.user_id}: {exc}")
+
+
+async def _attempt_recurring_charge(session, bot: Bot, sub: Subscription) -> bool:
+    if not sub.auto_renew_enabled or not sub.recurring_token or not sub.renewal_provider:
+        return False
+
+    tariff = (await session.execute(select(Tariff).where(Tariff.id == sub.tariff_id))).scalar_one_or_none()
+    user = (await session.execute(select(User).where(User.telegram_id == sub.user_id))).scalar_one_or_none()
+    if not tariff or not user:
+        return False
+
+    runtime_settings = await resolve_runtime_settings(session)
+    provider = build_payment_provider(
+        sub.renewal_provider,
+        yoomoney_receiver=runtime_settings.get("yoomoney_receiver", ""),
+        yookassa_shop_id=runtime_settings.get("yookassa_shop_id", ""),
+        yookassa_secret_key=runtime_settings.get("yookassa_secret_key", ""),
+        sberbank_username=runtime_settings.get("sberbank_username", ""),
+        sberbank_password=runtime_settings.get("sberbank_password", ""),
+    )
+    result = await provider.charge_recurring(
+        tariff.price,
+        f"Автопродление тарифа {tariff.name}",
+        sub.recurring_token,
+        {"user_id": sub.user_id, "tariff_id": sub.tariff_id},
+    )
+    if not result.success:
+        logger.warning(f"Recurring charge failed for subscription {sub.id}: {result.error_message}")
+        return False
+
+    status = await provider.check_status(result.transaction_id) if result.transaction_id else "success"
+    if status != "success":
+        logger.warning(f"Recurring charge for subscription {sub.id} returned status {status}")
+        return False
+
+    payment = Payment(
+        user_id=sub.user_id,
+        tariff_id=sub.tariff_id,
+        amount=tariff.price,
+        provider=sub.renewal_provider,
+        status="success",
+        transaction_id=result.transaction_id,
+        recurring_token=result.recurring_token or sub.recurring_token,
+        raw_payload=json.dumps(result.raw, ensure_ascii=False, default=str),
+    )
+    session.add(payment)
+    await session.flush()
+    await activate_user_access(session, bot, user=user, tariff=tariff, paid=True, payment=payment)
+    return True
+
+
+async def _handle_expired(bot: Bot, session) -> None:
+    now = utcnow()
+    runtime_settings = await resolve_runtime_settings(session)
+    grace_period_days = int(runtime_settings.get("grace_period_days") or 0)
+    stmt = select(Subscription).where(
+        Subscription.is_active.is_(True),
+        Subscription.end_date.is_not(None),
+        Subscription.end_date < now,
+    )
+    expired_subscriptions = (await session.execute(stmt)).scalars().all()
+    for sub in expired_subscriptions:
+        user = (await session.execute(select(User).where(User.telegram_id == sub.user_id))).scalar_one_or_none()
+        if user and (user.is_admin or user.telegram_id in settings.bot.admin_ids):
+            continue
+
+        renewed = await _attempt_recurring_charge(session, bot, sub)
+        if renewed:
+            continue
+
+        if grace_period_days > 0 and not sub.in_grace_period:
+            sub.in_grace_period = True
+            sub.grace_end_date = now + timedelta(days=grace_period_days)
+            sub.renewal_failed_at = now
+            try:
+                await bot.send_message(
+                    sub.user_id,
+                    f"Автопродление не прошло. Включен grace period на {grace_period_days} дн.",
+                )
+            except Exception as exc:
+                logger.warning(f"Failed to notify grace period for {sub.user_id}: {exc}")
+            continue
+
+        if sub.in_grace_period and sub.grace_end_date and sub.grace_end_date >= now:
+            continue
+
+        sub.is_active = False
+        sub.in_grace_period = False
+        sub.grace_end_date = None
+        try:
+            await bot.send_message(sub.user_id, "Подписка истекла. Доступ к ресурсам закрыт.")
+        except Exception as exc:
+            logger.warning(f"Failed to notify expired user {sub.user_id}: {exc}")
+        await session.flush()
+        await revoke_user_from_inaccessible_chats(bot, session, sub.user_id)
+
 
 async def check_subscriptions(bot: Bot):
-    """Periodically checks for expiring subscriptions and notifies users."""
     while True:
         try:
             logger.info("Running subscription check task...")
-            async with async_session() as session:
-                now = datetime.now(timezone.utc)
-                
-                # 1. Notify users whose subscription ends in 3 days, 1 day
-                # (For simplicity, we check specific intervals)
-                for days in [3, 1]:
-                    target_date = now + timedelta(days=days)
-                    # Find active subs ending within the next hour of the target date
-                    # In a real app, you'd track if notification was already sent
-                    stmt = select(Subscription).where(
-                        Subscription.is_active == True,
-                        Subscription.end_date >= target_date - timedelta(hours=1),
-                        Subscription.end_date <= target_date + timedelta(hours=1)
-                    )
-                    res = await session.execute(stmt)
-                    subs = res.scalars().all()
-                    
-                    for sub in subs:
-                        try:
-                            msg = f"⚠️ Ваша подписка истекает через {days} дн. Не забудьте продлить!"
-                            await bot.send_message(sub.user_id, msg)
-                        except Exception as e:
-                            logger.warning(f"Failed to notify user {sub.user_id}: {e}")
-
-                # 2. Process expired subscriptions
-                stmt = select(Subscription).where(
-                    Subscription.is_active == True,
-                    Subscription.end_date < now
-                )
-                res = await session.execute(stmt)
-                expired_subs = res.scalars().all()
-                
-                for sub in expired_subs:
-                    # Check if user is admin before processing expiry
-                    user_stmt = select(User).where(User.telegram_id == sub.user_id)
-                    user_res = await session.execute(user_stmt)
-                    user = user_res.scalar_one_or_none()
-
-                    if user and user.is_admin:
-                        logger.info(f"Skipping expiry for admin user {sub.user_id}")
-                        continue
-
-                    logger.info(f"Subscription {sub.id} for user {sub.user_id} expired.")
-                    # Deactivate sub
-                    sub.is_active = False
-                    try:
-                        await bot.send_message(sub.user_id, "🔴 Ваша подписка истекла. Доступ к закрытым ресурсам ограничен.")
-                        # Here you could also kick user from channel/group
-                        # await bot.ban_chat_member(chat_id, sub.user_id)
-                    except Exception as e:
-                        logger.warning(f"Failed to notify/kick user {sub.user_id}: {e}")
-                
-                await session.commit()
-                
-        except Exception as e:
-            logger.error(f"Error in subscription check task: {e}")
-            
-        # Run check every 6 hours
+            if not async_session:
+                logger.warning("Subscription task skipped because DB session factory is unavailable.")
+            else:
+                async with async_session() as session:
+                    await _notify_expiring(bot, session)
+                    await _handle_expired(bot, session)
+                    await session.commit()
+        except Exception as exc:
+            logger.error(f"Error in subscription check task: {exc}")
         await asyncio.sleep(6 * 3600)
+
 
 def start_background_tasks(bot: Bot):
     asyncio.create_task(check_subscriptions(bot))
     logger.info("Background tasks started.")
+
+
+
+

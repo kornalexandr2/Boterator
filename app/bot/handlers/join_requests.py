@@ -1,84 +1,49 @@
-from aiogram import Router, types
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+﻿from aiogram import Router, types
 from loguru import logger
-from app.database.models import User, Subscription
-from datetime import datetime, timezone
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database.models import User
+from app.services.access import get_accessible_chat_ids, upsert_user_from_telegram
 
 router = Router()
+
 
 @router.chat_join_request()
 async def process_join_request(update: types.ChatJoinRequest, session: AsyncSession | None):
     logger.info(f"Join request received from user {update.from_user.id} for chat {update.chat.id}")
-    
+
     if not session:
-        logger.warning(f"No DB session, approving join request for {update.from_user.id} by default (Graceful degradation).")
+        logger.warning(f"No DB session, cannot verify access for {update.from_user.id}. Declining safely.")
         try:
-            await update.approve()
-        except Exception as e:
-            logger.error(f"Failed to approve join request: {e}")
+            await update.bot.send_message(
+                update.from_user.id,
+                "Сервис проверки доступа временно недоступен. Попробуйте еще раз позже.",
+            )
+            await update.decline()
+        except Exception as exc:
+            logger.error(f"Failed to decline join request without DB: {exc}")
         return
 
-    # Check user in DB
-    stmt = select(User).where(User.telegram_id == update.from_user.id)
-    result = await session.execute(stmt)
-    user = result.scalar_one_or_none()
-    
-    if not user:
-        # Register new user if not found
-        logger.info(f"Registering new user {update.from_user.id} through join request.")
-        user = User(
-            telegram_id=update.from_user.id,
-            username=update.from_user.username,
-            first_name=update.from_user.first_name,
-            last_name=update.from_user.last_name,
-        )
-        session.add(user)
-        try:
-            await session.commit()
-        except Exception as e:
-            logger.error(f"Failed to commit new user {update.from_user.id}: {e}")
-            await session.rollback()
-    
-    # Check if user is eternal (already in chat before bot was added)
-    if user and user.is_eternal:
-         logger.info(f"User {update.from_user.id} is eternal. Approving.")
-         try:
-             await update.approve()
-         except Exception as e:
-             logger.error(f"Failed to approve eternal user: {e}")
-         return
-         
-    # Check active subscriptions
-    has_active_sub = False
-    if user:
-         sub_stmt = select(Subscription).where(
-             Subscription.user_id == user.telegram_id,
-             Subscription.is_active == True,
-             (Subscription.end_date == None) | (Subscription.end_date >= datetime.now(timezone.utc))
-         )
-         sub_result = await session.execute(sub_stmt)
-         active_subs = sub_result.scalars().all()
-         
-         if active_subs:
-             has_active_sub = True
+    user = await upsert_user_from_telegram(session, update.from_user)
+    await session.commit()
+    user = (await session.execute(select(User).where(User.telegram_id == update.from_user.id))).scalar_one_or_none()
 
-    if has_active_sub:
-        logger.info(f"User {update.from_user.id} has active subscription. Approving.")
+    allowed_chat_ids = await get_accessible_chat_ids(session, user, update.from_user.id)
+    if user and (user.is_eternal or update.chat.id in allowed_chat_ids):
+        logger.info(f"User {update.from_user.id} is allowed for chat {update.chat.id}. Approving.")
         try:
-             await update.approve()
-        except Exception as e:
-             logger.error(f"Failed to approve subscribed user: {e}")
-    else:
-        logger.info(f"User {update.from_user.id} has no active subscriptions. Declining or ignoring.")
-        try:
-             # Option 1: Decline
-             # await update.decline()
-             # Option 2: Send message to bot PM asking to pay
-             await update.bot.send_message(
-                 update.from_user.id,
-                 "У вас нет активной подписки для доступа к этому каналу. Пожалуйста, оформите тариф."
-             )
-             await update.decline()
-        except Exception as e:
-             logger.error(f"Failed to process rejected join request: {e}")
+            await update.approve()
+        except Exception as exc:
+            logger.error(f"Failed to approve join request: {exc}")
+        return
+
+    logger.info(f"User {update.from_user.id} has no access to chat {update.chat.id}. Declining.")
+    try:
+        await update.bot.send_message(
+            update.from_user.id,
+            "У вас нет активного тарифа для этого ресурса. Откройте витрину и оформите подписку.",
+        )
+        await update.decline()
+    except Exception as exc:
+        logger.error(f"Failed to process rejected join request: {exc}")

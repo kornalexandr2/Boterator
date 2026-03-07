@@ -1,61 +1,41 @@
-from aiogram import Router, F, types
+﻿from aiogram import Router, types
 from aiogram.filters import CommandStart
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from loguru import logger
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.config import settings
-from app.database.models import User
+from app.services.access import mark_user_as_eternal_if_member, resolve_user_role, upsert_user_from_telegram
 
 router = Router()
+
 
 @router.message(CommandStart())
 async def start_cmd(message: types.Message, session: AsyncSession | None):
     logger.info(f"User {message.from_user.id} started the bot.")
-    
+
+    role = "user"
     if session:
-         stmt = select(User).where(User.telegram_id == message.from_user.id)
-         result = await session.execute(stmt)
-         user = result.scalar_one_or_none()
-         
-         if not user:
-             new_user = User(
-                 telegram_id=message.from_user.id,
-                 username=message.from_user.username,
-                 first_name=message.from_user.first_name,
-                 last_name=message.from_user.last_name,
-                 is_admin=(message.from_user.id in settings.bot.admin_ids)
-             )
-             session.add(new_user)
-             logger.info(f"Registered new user: {message.from_user.id}")
+        user = await upsert_user_from_telegram(session, message.from_user)
+        await mark_user_as_eternal_if_member(message.bot, session, user)
+        await session.commit()
+        role = resolve_user_role(user, message.from_user.id)
+    elif message.from_user.id in settings.bot.admin_ids:
+        role = "super_admin"
 
     builder = InlineKeyboardBuilder()
-    
-    # Check if user is admin (Config OR DB)
-    is_admin = False
-    if message.from_user.id in settings.bot.admin_ids:
-        is_admin = True
-    elif session:
-        stmt = select(User).where(User.telegram_id == message.from_user.id, User.is_admin == True)
-        res = await session.execute(stmt)
-        if res.scalar_one_or_none():
-            is_admin = True
-
-    # Store button is now visible to everyone (including admins)
     builder.button(
-         text="Открыть витрину тарифов", 
-         web_app=types.WebAppInfo(url=f"{settings.app.base_url.rstrip('/')}/twa/store")
+        text="Открыть витрину тарифов",
+        web_app=types.WebAppInfo(url=f"{settings.app.base_url.rstrip('/')}/twa/store"),
     )
-
-    if is_admin:
-         builder.button(
-             text="⚙️ CRM Администратора",
-             web_app=types.WebAppInfo(url=f"{settings.app.base_url.rstrip('/')}/twa/admin")
-         )
-    
+    if role in {"super_admin", "admin", "moderator"}:
+        builder.button(
+            text="CRM администратора",
+            web_app=types.WebAppInfo(url=f"{settings.app.base_url.rstrip('/')}/twa/admin"),
+        )
     builder.adjust(1)
-    
+
     await message.answer(
-        "Добро пожаловать в Boterator! 🤖\n\nЗдесь вы можете управлять своими подписками на каналы и группы.",
-        reply_markup=builder.as_markup()
+        "Добро пожаловать в Boterator. Здесь вы можете оформить подписку и управлять доступом к закрытым ресурсам.",
+        reply_markup=builder.as_markup(),
     )
