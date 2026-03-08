@@ -24,8 +24,8 @@
             min-height: 100vh;
             background: var(--bg);
             color: var(--text);
-            font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-            padding: 20px 14px 42px;
+            font-family: "Trebuchet MS", "Gill Sans", sans-serif;
+            padding: 22px 14px 48px;
         }
         .shell { max-width: 1180px; margin: 0 auto; }
         .hero, .section, .status { box-shadow: var(--shadow); }
@@ -36,7 +36,12 @@
             margin-bottom: 18px;
         }
         .eyebrow { text-transform: uppercase; letter-spacing: 0.12em; font-size: 12px; color: var(--muted); }
-        h1 { margin: 10px 0 8px; font-size: 34px; }
+        h1 {
+            margin: 10px 0 8px;
+            font-size: 38px;
+            letter-spacing: -0.03em;
+            font-family: Georgia, "Times New Roman", serif;
+        }
         .hero p { margin: 0; color: var(--muted); max-width: 720px; }
         .status {
             display: none;
@@ -50,19 +55,20 @@
         .status.error { background: rgba(170,67,57,0.12); color: var(--danger); }
         .tabs {
             display: flex;
-            gap: 10px;
+            gap: 12px;
             overflow-x: auto;
-            padding-bottom: 8px;
+            padding-bottom: 10px;
             margin-bottom: 16px;
         }
         .tab {
             border: none;
             border-radius: 999px;
-            padding: 10px 14px;
+            padding: 11px 16px;
             background: rgba(255,255,255,0.7);
             color: var(--muted);
             cursor: pointer;
             font: inherit;
+            font-weight: 700;
             white-space: nowrap;
         }
         .tab.active { background: var(--accent); color: #f6f7f4; }
@@ -75,7 +81,20 @@
             margin-bottom: 16px;
         }
         .section.active { display: block; }
-        .section h2 { margin: 0 0 14px; }
+        .section h2 { margin: 0; }
+        .section-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: start;
+            margin-bottom: 18px;
+        }
+        .section-copy {
+            margin: 8px 0 0;
+            color: var(--muted);
+            max-width: 680px;
+            line-height: 1.5;
+        }
         .grid { display: grid; gap: 14px; }
         .stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
         .stat {
@@ -86,18 +105,24 @@
         }
         .stat small { color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
         .stat strong { display: block; margin-top: 6px; font-size: 24px; }
-        .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        .row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
         .card {
             border: 1px solid var(--line);
             background: rgba(255,255,255,0.76);
             border-radius: 20px;
             padding: 16px;
             display: grid;
-            gap: 10px;
+            gap: 12px;
         }
         .card-header { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
         .title { font-size: 18px; font-weight: 700; }
         .muted { color: var(--muted); font-size: 14px; }
+        .muted-list {
+            display: grid;
+            gap: 6px;
+            color: var(--muted);
+            font-size: 14px;
+        }
         .pill {
             display: inline-flex;
             align-items: center;
@@ -120,25 +145,166 @@
             font: inherit;
         }
         .textarea { min-height: 120px; resize: vertical; }
-        .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
         .btn {
             border: none;
             border-radius: 14px;
-            padding: 11px 14px;
+            padding: 12px 16px;
+            min-height: 46px;
+            min-width: 140px;
             font: inherit;
             font-weight: 700;
             cursor: pointer;
             background: linear-gradient(135deg, var(--accent), #2d8a78);
             color: #f5fbf8;
+            box-shadow: 0 12px 24px rgba(31,107,93,0.14);
         }
-        .btn.secondary { background: rgba(255,255,255,0.86); color: var(--text); border: 1px solid var(--line); }
+        .btn.secondary {
+            background: rgba(255,255,255,0.92);
+            color: var(--text);
+            border: 1px solid var(--line);
+            box-shadow: none;
+        }
         .btn.danger { background: linear-gradient(135deg, var(--danger), #cf6a57); color: #fff7f6; }
         .btn.warning { background: linear-gradient(135deg, #d18d23, #f0b347); color: #3f2a03; }
+        .btn.compact {
+            min-width: auto;
+            min-height: 42px;
+            padding: 10px 14px;
+        }
         .split { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
         .checks { display: grid; gap: 8px; }
         .checks label { display: flex; gap: 8px; align-items: start; color: var(--muted); }
         .empty { color: var(--muted); }
+        .empty-card {
+            border: 1px dashed rgba(44,35,27,0.16);
+            border-radius: 18px;
+            background: rgba(255,255,255,0.58);
+            padding: 18px;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+        .toolbar {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .input-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+        .tariff-workspace {
+            display: grid;
+            grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.95fr);
+            gap: 18px;
+            align-items: start;
+        }
+        .tariff-cards {
+            display: grid;
+            gap: 14px;
+        }
+        .tariff-card.active {
+            border-color: rgba(31,107,93,0.34);
+            box-shadow: 0 18px 40px rgba(31,107,93,0.12);
+        }
+        .tariff-editor {
+            position: sticky;
+            top: 14px;
+            padding: 18px;
+            gap: 14px;
+            background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(243,247,245,0.95));
+        }
+        .editor-title {
+            display: grid;
+            gap: 6px;
+        }
+        .editor-title strong {
+            font-size: 20px;
+        }
+        .editor-grid {
+            display: grid;
+            gap: 14px;
+        }
+        .option-grid {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        }
+        .option-card {
+            display: flex;
+            gap: 10px;
+            align-items: start;
+            padding: 14px;
+            border-radius: 16px;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,0.8);
+            color: var(--muted);
+        }
+        .option-card strong {
+            display: block;
+            margin-bottom: 4px;
+            color: var(--text);
+        }
+        .resource-grid {
+            display: grid;
+            gap: 10px;
+        }
+        .resource-tile {
+            display: grid;
+            grid-template-columns: 22px minmax(0, 1fr);
+            gap: 12px;
+            align-items: start;
+            padding: 13px 14px;
+            border-radius: 18px;
+            border: 1px solid rgba(44,35,27,0.1);
+            background: rgba(255,255,255,0.88);
+            cursor: pointer;
+        }
+        .resource-tile input { margin: 3px 0 0; }
+        .resource-tile span {
+            display: grid;
+            gap: 4px;
+        }
+        .resource-tile strong {
+            font-size: 15px;
+            color: var(--text);
+        }
+        .resource-tile small {
+            color: var(--muted);
+            font-size: 13px;
+        }
+        .resource-summary {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .tariff-meta {
+            display: grid;
+            gap: 8px;
+        }
+        .stack-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
         .hidden { display: none !important; }
+        @media (max-width: 900px) {
+            h1 { font-size: 32px; }
+            .section-top, .card-header { flex-direction: column; }
+            .input-row, .tariff-workspace { grid-template-columns: 1fr; }
+            .tariff-editor { position: static; }
+            .toolbar, .stack-actions { display: grid; grid-template-columns: 1fr; }
+            .btn { width: 100%; }
+        }
     </style>
 </head>
 <body>
@@ -175,26 +341,36 @@
             </section>
 
             <section class="section" id="section-resources">
-                <div class="row" style="justify-content:space-between;">
-                    <h2>Ресурсы</h2>
+                <div class="section-top">
+                    <div>
+                        <h2>Ресурсы</h2>
+                        <p class="section-copy">Добавьте группы и каналы, которыми управляет бот. После этого их можно будет явно привязать к тарифам из отдельного редактора справа.</p>
+                    </div>
                     <div class="actions">
                         <button class="btn secondary" onclick="syncResources()">Синхронизировать</button>
                     </div>
                 </div>
-                <div class="row" style="margin-bottom:12px;">
+                <div class="input-row">
                     <input class="input" id="resource-id" placeholder="ID чата, например -1001234567890">
-                    <button class="btn" onclick="addResource()">Добавить ресурс</button>
+                    <button class="btn compact" onclick="addResource()">Добавить ресурс</button>
                 </div>
                 <div id="resources-list" class="grid"></div>
             </section>
 
             <section class="section" id="section-tariffs">
-                <div class="row" style="justify-content:space-between;">
-                    <h2>Тарифы</h2>
-                    <button class="btn" onclick="openTariffForm()">Новый тариф</button>
+                <div class="section-top">
+                    <div>
+                        <h2>Тарифы</h2>
+                        <p class="section-copy">Редактирование и привязка каналов вынесены в постоянный редактор. Выберите тариф слева или создайте новый, затем отметьте нужные ресурсы чекбоксами.</p>
+                    </div>
+                    <div class="actions">
+                        <button class="btn" onclick="openTariffForm()">Новый тариф</button>
+                    </div>
                 </div>
-                <div id="tariffs-list" class="grid"></div>
-                <div id="tariff-form" class="card hidden" style="margin-top:14px;"></div>
+                <div class="tariff-workspace">
+                    <div id="tariffs-list" class="tariff-cards"></div>
+                    <aside id="tariff-form" class="card tariff-editor"></aside>
+                </div>
             </section>
 
             <section class="section" id="section-users">
@@ -252,23 +428,48 @@
             editingTariff: null
         };
 
-        function authHeaders() {
+        function emptyTariffDraft() {
             return {
-                "Content-Type": "application/json",
-                "X-Telegram-Init-Data": tg.initData || ""
+                id: null,
+                name: '',
+                description: '',
+                price: 0,
+                duration_days: 30,
+                is_trial: false,
+                is_hidden: false,
+                require_email: false,
+                require_phone: false,
+                resource_ids: []
             };
         }
 
-        function showStatus(message, type = "info") {
-            const box = document.getElementById("status");
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[char]));
+        }
+
+        function authHeaders() {
+            return {
+                'Content-Type': 'application/json',
+                'X-Telegram-Init-Data': tg.initData || ''
+            };
+        }
+
+        function showStatus(message, type = 'info') {
+            const box = document.getElementById('status');
             box.className = `status show ${type}`;
             box.textContent = message;
         }
 
         function hideStatus() {
-            const box = document.getElementById("status");
-            box.className = "status";
-            box.textContent = "";
+            const box = document.getElementById('status');
+            box.className = 'status';
+            box.textContent = '';
         }
 
         async function fetchJson(url, options = {}) {
@@ -276,12 +477,12 @@
                 ...options,
                 headers: {
                     ...(options.headers || {}),
-                    "X-Telegram-Init-Data": tg.initData || ""
+                    'X-Telegram-Init-Data': tg.initData || ''
                 }
             });
             const data = await response.json();
-            if (!response.ok || data.status === "error") {
-                throw new Error(data.message || "Ошибка запроса");
+            if (!response.ok || data.status === 'error') {
+                throw new Error(data.message || 'Ошибка запроса');
             }
             return data;
         }
@@ -294,132 +495,259 @@
                 }
             });
         }
-
         function pill(label, kind = '') {
-            return `<span class="pill ${kind}">${label}</span>`;
+            return `<span class="pill ${kind}">${escapeHtml(label)}</span>`;
+        }
+
+        function resourceLookup() {
+            return new Map(state.resources.map(chat => [Number(chat.chat_id), chat]));
+        }
+
+        function tariffLookup() {
+            return new Map(state.tariffs.map(tariff => [Number(tariff.id), tariff]));
+        }
+
+        function resourceNamesForTariff(tariff) {
+            const lookup = resourceLookup();
+            return (tariff.resource_ids || []).map(chatId => lookup.get(Number(chatId))?.title || `ID ${chatId}`);
+        }
+
+        function tariffNamesForResource(chat) {
+            const lookup = tariffLookup();
+            return (chat.assigned_tariff_ids || []).map(tariffId => lookup.get(Number(tariffId))?.name || `Тариф #${tariffId}`);
         }
 
         function renderStats() {
             const stats = state.stats || {};
             document.getElementById('stats').innerHTML = `
-                <div class="stat"><small>Доход</small><strong>${stats.monthly_revenue || '0 RUB'}</strong></div>
-                <div class="stat"><small>Новые</small><strong>${stats.new_users || '0'}</strong></div>
-                <div class="stat"><small>Активные</small><strong>${stats.active_subscriptions || '0'}</strong></div>
-                <div class="stat"><small>Всего</small><strong>${stats.total_users || '0'}</strong></div>
-                <div class="stat"><small>Churn</small><strong>${stats.churn_rate || '0%'}</strong></div>
+                <div class="stat"><small>Доход</small><strong>${escapeHtml(stats.monthly_revenue || '0 RUB')}</strong></div>
+                <div class="stat"><small>Новые</small><strong>${escapeHtml(stats.new_users || '0')}</strong></div>
+                <div class="stat"><small>Активные</small><strong>${escapeHtml(stats.active_subscriptions || '0')}</strong></div>
+                <div class="stat"><small>Всего</small><strong>${escapeHtml(stats.total_users || '0')}</strong></div>
+                <div class="stat"><small>Churn</small><strong>${escapeHtml(stats.churn_rate || '0%')}</strong></div>
             `;
         }
 
         function renderResources() {
             const root = document.getElementById('resources-list');
             if (!state.resources.length) {
-                root.innerHTML = '<div class="empty">Ресурсы еще не добавлены.</div>';
+                root.innerHTML = '<div class="empty-card">Ресурсы еще не добавлены. Сначала добавьте канал или группу, а затем привяжите их к нужному тарифу.</div>';
                 return;
             }
-            root.innerHTML = state.resources.map(chat => `
-                <article class="card">
-                    <div class="card-header">
-                        <div>
-                            <div class="title">${chat.title}</div>
-                            <div class="muted">ID: ${chat.chat_id}</div>
+            root.innerHTML = state.resources.map(chat => {
+                const assignedNames = tariffNamesForResource(chat);
+                return `
+                    <article class="card">
+                        <div class="card-header">
+                            <div>
+                                <div class="title">${escapeHtml(chat.title)}</div>
+                                <div class="muted">ID: ${escapeHtml(chat.chat_id)}</div>
+                            </div>
+                            <div class="actions">
+                                ${chat.is_active ? pill('Активен') : pill('Неактивен', 'danger')}
+                                ${chat.permissions_ok ? pill('Права OK') : pill('Права не полные', 'warn')}
+                                ${chat.protect_content_enabled ? pill('Защита контента') : pill('Защита не включена', 'warn')}
+                            </div>
                         </div>
-                        <div class="actions">
-                            ${chat.is_active ? pill('Активен') : pill('Неактивен', 'danger')}
-                            ${chat.permissions_ok ? pill('Права OK') : pill('Права не полные', 'warn')}
-                            ${chat.protect_content_enabled ? pill('Защита контента') : pill('Защита не включена', 'warn')}
+                        <div class="muted-list">
+                            <div>${escapeHtml(chat.missing_permissions ? 'Не хватает: ' + chat.missing_permissions : 'Все критичные права выданы.')}</div>
+                            <div>${chat.invite_link ? `Invite link подготовлен: ${escapeHtml(chat.invite_link)}` : 'Invite link будет создан после успешной синхронизации прав.'}</div>
                         </div>
-                    </div>
-                    <div class="muted">${chat.missing_permissions ? 'Не хватает: ' + chat.missing_permissions : 'Все критичные права выданы.'}</div>
-                    <div class="muted">Связанные тарифы: ${chat.assigned_tariff_ids?.length ? chat.assigned_tariff_ids.join(', ') : 'нет'}</div>
-                </article>
-            `).join('');
+                        <div class="tariff-meta">
+                            <div class="muted">Связанные тарифы</div>
+                            ${assignedNames.length ? `<div class="resource-summary">${assignedNames.map(name => pill(name)).join('')}</div>` : '<div class="empty">Пока не привязан ни к одному тарифу.</div>'}
+                        </div>
+                    </article>
+                `;
+            }).join('');
         }
 
         function resourceChecks(selected = []) {
-            return state.resources.map(chat => `
-                <label><input type="checkbox" value="${chat.chat_id}" ${selected.includes(chat.chat_id) ? 'checked' : ''}> <span>${chat.title} (${chat.chat_id})</span></label>
-            `).join('');
-        }
-
-        function openTariffForm(tariff = null) {
-            state.editingTariff = tariff;
-            const root = document.getElementById('tariff-form');
-            root.classList.remove('hidden');
-            root.innerHTML = `
-                <div class="split">
-                    <div>
-                        <label class="muted">Название</label>
-                        <input class="input" id="tariff-name" value="${tariff?.name || ''}">
-                    </div>
-                    <div>
-                        <label class="muted">Цена</label>
-                        <input class="input" id="tariff-price" type="number" value="${tariff?.price || 0}">
-                    </div>
-                    <div>
-                        <label class="muted">Срок в днях</label>
-                        <input class="input" id="tariff-days" type="number" value="${tariff?.duration_days || 30}">
-                    </div>
-                </div>
-                <label class="muted">Описание</label>
-                <textarea class="textarea" id="tariff-description">${tariff?.description || ''}</textarea>
-                <div class="checks">
-                    <label><input type="checkbox" id="tariff-trial" ${tariff?.is_trial ? 'checked' : ''}> <span>Триал</span></label>
-                    <label><input type="checkbox" id="tariff-hidden" ${tariff?.is_hidden ? 'checked' : ''}> <span>Скрытый тариф</span></label>
-                    <label><input type="checkbox" id="tariff-email" ${tariff?.require_email ? 'checked' : ''}> <span>Требовать email</span></label>
-                    <label><input type="checkbox" id="tariff-phone" ${tariff?.require_phone ? 'checked' : ''}> <span>Требовать телефон</span></label>
-                </div>
-                <div class="card">
-                    <div class="title">Ресурсы тарифа</div>
-                    <div class="checks">${resourceChecks(tariff?.resource_ids || [])}</div>
-                </div>
-                <div class="actions">
-                    <button class="btn" onclick="saveTariff()">Сохранить</button>
-                    <button class="btn secondary" onclick="closeTariffForm()">Отмена</button>
+            if (!state.resources.length) {
+                return '<div class="empty-card">Сначала добавьте хотя бы один ресурс в разделе «Ресурсы». После этого здесь появятся каналы и группы для привязки к тарифу.</div>';
+            }
+            const selectedSet = new Set(selected.map(Number));
+            return `
+                <div class="resource-grid">
+                    ${state.resources.map(chat => `
+                        <label class="resource-tile">
+                            <input data-resource-checkbox type="checkbox" value="${chat.chat_id}" ${selectedSet.has(Number(chat.chat_id)) ? 'checked' : ''}>
+                            <span>
+                                <strong>${escapeHtml(chat.title)}</strong>
+                                <small>ID: ${escapeHtml(chat.chat_id)}</small>
+                            </span>
+                        </label>
+                    `).join('')}
                 </div>
             `;
         }
 
+        function snapshotTariffDraft() {
+            const nameField = document.getElementById('tariff-name');
+            if (!nameField) {
+                return;
+            }
+            state.editingTariff = {
+                ...(state.editingTariff || emptyTariffDraft()),
+                id: state.editingTariff?.id ?? null,
+                name: nameField.value.trim(),
+                description: document.getElementById('tariff-description').value.trim(),
+                price: Number(document.getElementById('tariff-price').value || 0),
+                duration_days: Number(document.getElementById('tariff-days').value || 0),
+                is_trial: document.getElementById('tariff-trial').checked,
+                is_hidden: document.getElementById('tariff-hidden').checked,
+                require_email: document.getElementById('tariff-email').checked,
+                require_phone: document.getElementById('tariff-phone').checked,
+                resource_ids: [...document.querySelectorAll('#tariff-form [data-resource-checkbox]:checked')].map(input => Number(input.value))
+            };
+        }
+
+        function renderTariffEditor() {
+            const root = document.getElementById('tariff-form');
+            if (!state.editingTariff) {
+                root.innerHTML = `
+                    <div class="editor-title">
+                        <div class="eyebrow">Редактор тарифа</div>
+                        <strong>Выберите тариф слева</strong>
+                        <div class="muted">Редактор закреплен справа, поэтому привязки к каналам всегда перед глазами. Можно открыть существующий тариф или создать новый.</div>
+                    </div>
+                    <div class="empty-card">
+                        Чтобы привязать тариф к каналу, нажмите «Редактировать» у нужного тарифа и отметьте ресурсы в блоке «Привязка ресурсов».
+                    </div>
+                `;
+                return;
+            }
+
+            const tariff = state.editingTariff;
+            root.innerHTML = `
+                <div class="editor-title">
+                    <div class="eyebrow">${tariff.id ? 'Редактирование тарифа' : 'Новый тариф'}</div>
+                    <strong>${tariff.id ? `Тариф «${escapeHtml(tariff.name || 'Без названия')}»` : 'Создание нового тарифа'}</strong>
+                    <div class="muted">Сначала заполните базовые поля, затем отметьте каналы и группы, к которым должен открываться доступ.</div>
+                </div>
+                <div class="editor-grid">
+                    <div class="split">
+                        <div>
+                            <label class="muted">Название</label>
+                            <input class="input" id="tariff-name" value="${escapeHtml(tariff.name)}" placeholder="Например: Премиум на 30 дней">
+                        </div>
+                        <div>
+                            <label class="muted">Цена</label>
+                            <input class="input" id="tariff-price" type="number" min="0" value="${escapeHtml(tariff.price)}">
+                        </div>
+                        <div>
+                            <label class="muted">Срок в днях</label>
+                            <input class="input" id="tariff-days" type="number" min="0" value="${escapeHtml(tariff.duration_days)}">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="muted">Описание тарифа</label>
+                        <textarea class="textarea" id="tariff-description" placeholder="Кратко опишите, что получает пользователь">${escapeHtml(tariff.description)}</textarea>
+                    </div>
+                    <div>
+                        <div class="muted" style="margin-bottom:8px;">Поведение тарифа</div>
+                        <div class="option-grid">
+                            <label class="option-card">
+                                <input type="checkbox" id="tariff-trial" ${tariff.is_trial ? 'checked' : ''}>
+                                <span><strong>Триал</strong>Выдавать как бесплатный пробный доступ.</span>
+                            </label>
+                            <label class="option-card">
+                                <input type="checkbox" id="tariff-hidden" ${tariff.is_hidden ? 'checked' : ''}>
+                                <span><strong>Скрытый тариф</strong>Не показывать в пользовательской витрине.</span>
+                            </label>
+                            <label class="option-card">
+                                <input type="checkbox" id="tariff-email" ${tariff.require_email ? 'checked' : ''}>
+                                <span><strong>Email обязателен</strong>Попросить email перед покупкой.</span>
+                            </label>
+                            <label class="option-card">
+                                <input type="checkbox" id="tariff-phone" ${tariff.require_phone ? 'checked' : ''}>
+                                <span><strong>Телефон обязателен</strong>Попросить телефон перед покупкой.</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="editor-title">
+                            <strong>Привязка ресурсов</strong>
+                            <div class="muted">Отметьте каналы и группы, которые должны открываться после активации тарифа. Сейчас выбрано: ${(tariff.resource_ids || []).length}</div>
+                        </div>
+                        ${resourceChecks(tariff.resource_ids || [])}
+                    </div>
+                    <div class="stack-actions">
+                        <button class="btn" onclick="saveTariff()">Сохранить тариф</button>
+                        <button class="btn secondary" onclick="closeTariffForm()">Закрыть редактор</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function openTariffForm(tariff = null, options = {}) {
+            snapshotTariffDraft();
+            state.editingTariff = tariff ? {
+                ...emptyTariffDraft(),
+                ...tariff,
+                resource_ids: [...(tariff.resource_ids || [])]
+            } : emptyTariffDraft();
+            renderTariffEditor();
+            switchSection('tariffs');
+            if (options.scroll !== false) {
+                document.getElementById('tariff-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+
         function closeTariffForm() {
-            document.getElementById('tariff-form').classList.add('hidden');
-            document.getElementById('tariff-form').innerHTML = '';
             state.editingTariff = null;
+            renderTariffEditor();
         }
 
         function openTariffById(id) {
-            const tariff = state.tariffs.find(item => item.id === id);
+            const tariff = state.tariffs.find(item => Number(item.id) === Number(id));
             openTariffForm(tariff || null);
         }
 
         function renderTariffs() {
             const root = document.getElementById('tariffs-list');
             if (!state.tariffs.length) {
-                root.innerHTML = '<div class="empty">Тарифы еще не созданы.</div>';
+                root.innerHTML = `
+                    <div class="empty-card">
+                        Тарифы еще не созданы. Нажмите «Новый тариф», заполните параметры и сразу отметьте каналы справа, чтобы не возвращаться к этому позже.
+                    </div>
+                `;
+                document.getElementById('broadcast-tariff').innerHTML = '<option value="">Нет тарифов</option>';
                 return;
             }
-            root.innerHTML = state.tariffs.map(tariff => `
-                <article class="card">
-                    <div class="card-header">
-                        <div>
-                            <div class="title">${tariff.name}</div>
-                            <div class="muted">${tariff.description || 'Без описания'}</div>
+            root.innerHTML = state.tariffs.map(tariff => {
+                const linkedResources = resourceNamesForTariff(tariff);
+                const isActive = Number(state.editingTariff?.id || 0) === Number(tariff.id);
+                return `
+                    <article class="card tariff-card ${isActive ? 'active' : ''}">
+                        <div class="card-header">
+                            <div>
+                                <div class="title">${escapeHtml(tariff.name)}</div>
+                                <div class="muted">${escapeHtml(tariff.description || 'Без описания')}</div>
+                            </div>
+                            <div class="actions">
+                                ${tariff.is_hidden ? pill('Скрытый', 'warn') : pill('Публичный')}
+                                ${tariff.is_trial ? pill('Триал') : ''}
+                            </div>
+                        </div>
+                        <div class="row">
+                            ${pill(`Цена: ${tariff.price} RUB`)}
+                            ${pill(tariff.duration_days === 0 ? 'Без срока' : `${tariff.duration_days} дней`)}
+                            ${tariff.require_email ? pill('Email обязателен') : ''}
+                            ${tariff.require_phone ? pill('Телефон обязателен') : ''}
+                        </div>
+                        <div class="tariff-meta">
+                            <div class="muted">Привязанные ресурсы</div>
+                            ${linkedResources.length ? `<div class="resource-summary">${linkedResources.map(name => pill(name)).join('')}</div>` : '<div class="empty">Ресурсы еще не выбраны.</div>'}
                         </div>
                         <div class="actions">
-                            ${tariff.is_hidden ? pill('Скрытый', 'warn') : pill('Публичный')}
-                            ${tariff.is_trial ? pill('Триал') : ''}
-                            <button class="btn secondary" onclick="openTariffById(${tariff.id})">Редактировать</button>
-                            <button class="btn danger" onclick="deleteTariff(${tariff.id})">Удалить</button>
+                            <button class="btn secondary compact" onclick="openTariffById(${tariff.id})">Редактировать</button>
+                            <button class="btn danger compact" onclick="deleteTariff(${tariff.id})">Удалить</button>
                         </div>
-                    </div>
-                    <div class="row">
-                        ${pill(`Цена: ${tariff.price} RUB`)}
-                        ${pill(tariff.duration_days === 0 ? 'Без срока' : `${tariff.duration_days} дней`)}
-                        ${tariff.require_email ? pill('Email обязателен') : ''}
-                        ${tariff.require_phone ? pill('Телефон обязателен') : ''}
-                    </div>
-                    <div class="muted">Ресурсов в тарифе: ${tariff.resource_ids?.length || 0}</div>
-                </article>
-            `).join('');
-            document.getElementById('broadcast-tariff').innerHTML = state.tariffs.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+                    </article>
+                `;
+            }).join('');
+            document.getElementById('broadcast-tariff').innerHTML = state.tariffs.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
         }
 
         async function loadDashboard() {
@@ -428,31 +756,45 @@
         }
 
         async function loadResources() {
+            snapshotTariffDraft();
             state.resources = await fetchJson('/twa/managed-chats');
             renderResources();
+            renderTariffs();
+            renderTariffEditor();
         }
 
         async function loadTariffs() {
+            snapshotTariffDraft();
             state.tariffs = await fetchJson('/twa/tariffs');
+            if (state.editingTariff?.id) {
+                const freshTariff = state.tariffs.find(item => Number(item.id) === Number(state.editingTariff.id));
+                state.editingTariff = freshTariff ? {
+                    ...emptyTariffDraft(),
+                    ...freshTariff,
+                    resource_ids: [...(freshTariff.resource_ids || [])]
+                } : null;
+            }
             renderTariffs();
+            renderResources();
+            renderTariffEditor();
         }
 
         function activeTariffOptions() {
-            return state.tariffs.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+            return state.tariffs.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
         }
 
         function renderUsers() {
             const root = document.getElementById('users-list');
             if (!state.users.length) {
-                root.innerHTML = '<div class="empty">Пользователи пока не зарегистрированы.</div>';
+                root.innerHTML = '<div class="empty-card">Пользователи пока не зарегистрированы.</div>';
                 return;
             }
             root.innerHTML = state.users.map(user => `
                 <article class="card">
                     <div class="card-header">
                         <div>
-                            <div class="title">${user.username}</div>
-                            <div class="muted">${user.full_name || 'Без имени'} · ID ${user.telegram_id}</div>
+                            <div class="title">${escapeHtml(user.username)}</div>
+                            <div class="muted">${escapeHtml(user.full_name || 'Без имени')} · ID ${escapeHtml(user.telegram_id)}</div>
                         </div>
                         <div class="actions">
                             ${pill(user.role)}
@@ -460,8 +802,8 @@
                             ${user.is_eternal ? pill('Eternal') : ''}
                         </div>
                     </div>
-                    <div class="muted">Email: ${user.email || 'не указан'} · Телефон: ${user.phone || 'не указан'}</div>
-                    <div class="muted">Активные тарифы: ${user.active_tariffs?.length ? user.active_tariffs.join(', ') : 'нет'}</div>
+                    <div class="muted">Email: ${escapeHtml(user.email || 'не указан')} · Телефон: ${escapeHtml(user.phone || 'не указан')}</div>
+                    <div class="muted">Активные тарифы: ${escapeHtml(user.active_tariffs?.length ? user.active_tariffs.join(', ') : 'нет')}</div>
                     <div class="row">
                         <select class="select" id="user-tariff-${user.telegram_id}">${activeTariffOptions()}</select>
                         <button class="btn" onclick="runAction('issue_tariff', { target_id: ${user.telegram_id}, tariff_id: Number(document.getElementById('user-tariff-${user.telegram_id}').value) })">Выдать тариф</button>
@@ -481,22 +823,22 @@
         function renderPayments() {
             const root = document.getElementById('payments-list');
             if (!state.payments.length) {
-                root.innerHTML = '<div class="empty">Платежей пока нет.</div>';
+                root.innerHTML = '<div class="empty-card">Платежей пока нет.</div>';
                 return;
             }
             root.innerHTML = state.payments.map(payment => `
                 <article class="card">
                     <div class="card-header">
                         <div>
-                            <div class="title">${payment.tariff_name || 'Без тарифа'} · ${payment.amount} RUB</div>
-                            <div class="muted">${payment.username || payment.user_id} · ${payment.provider} · ${payment.created_at || ''}</div>
+                            <div class="title">${escapeHtml(payment.tariff_name || 'Без тарифа')} · ${escapeHtml(payment.amount)} RUB</div>
+                            <div class="muted">${escapeHtml(payment.username || payment.user_id)} · ${escapeHtml(payment.provider)} · ${escapeHtml(payment.created_at || '')}</div>
                         </div>
                         <div class="actions">
                             ${pill(payment.status, payment.status === 'pending' ? 'warn' : payment.status === 'refunded' ? 'danger' : '')}
                         </div>
                     </div>
-                    <div class="muted">Транзакция: ${payment.transaction_id || 'нет'}</div>
-                    <div class="muted">Контакты: ${payment.contact_email || 'email нет'} / ${payment.contact_phone || 'телефон нет'}</div>
+                    <div class="muted">Транзакция: ${escapeHtml(payment.transaction_id || 'нет')}</div>
+                    <div class="muted">Контакты: ${escapeHtml(payment.contact_email || 'email нет')} / ${escapeHtml(payment.contact_phone || 'телефон нет')}</div>
                     <div class="actions">
                         <button class="btn warning" onclick="runAction('confirm_manual_payment', { payment_id: ${payment.id} })">Подтвердить вручную</button>
                         <button class="btn danger" onclick="refundPayment(${payment.id})">Сделать возврат</button>
@@ -517,23 +859,23 @@
                         <option value="sberbank" ${s.payment_mode === 'sberbank' ? 'selected' : ''}>Sberbank</option>
                     </select>
                     <label class="muted">Grace period, дней</label>
-                    <input class="input" id="s-grace" type="number" value="${s.grace_period_days || 3}">
+                    <input class="input" id="s-grace" type="number" value="${escapeHtml(s.grace_period_days || 3)}">
                     <label class="muted">Ссылка на оферту</label>
-                    <input class="input" id="s-offer" value="${s.offer_url || ''}">
+                    <input class="input" id="s-offer" value="${escapeHtml(s.offer_url || '')}">
                     <label class="muted">Ссылка на privacy</label>
-                    <input class="input" id="s-privacy" value="${s.privacy_url || ''}">
+                    <input class="input" id="s-privacy" value="${escapeHtml(s.privacy_url || '')}">
                 </div>
                 <div class="card">
                     <label class="muted">YooMoney receiver</label>
-                    <input class="input" id="s-yoomoney" value="${s.yoomoney_receiver || ''}">
+                    <input class="input" id="s-yoomoney" value="${escapeHtml(s.yoomoney_receiver || '')}">
                     <label class="muted">YooKassa shop id</label>
-                    <input class="input" id="s-yookassa-shop" value="${s.yookassa_shop_id || ''}">
+                    <input class="input" id="s-yookassa-shop" value="${escapeHtml(s.yookassa_shop_id || '')}">
                     <label class="muted">YooKassa secret</label>
-                    <input class="input" id="s-yookassa-secret" value="${s.yookassa_secret_key || ''}">
+                    <input class="input" id="s-yookassa-secret" value="${escapeHtml(s.yookassa_secret_key || '')}">
                     <label class="muted">Sberbank username</label>
-                    <input class="input" id="s-sber-user" value="${s.sberbank_username || ''}">
+                    <input class="input" id="s-sber-user" value="${escapeHtml(s.sberbank_username || '')}">
                     <label class="muted">Sberbank password</label>
-                    <input class="input" id="s-sber-secret" value="${s.sberbank_password || ''}">
+                    <input class="input" id="s-sber-secret" value="${escapeHtml(s.sberbank_password || '')}">
                     <button class="btn" onclick="saveSettings()">Сохранить настройки</button>
                 </div>
             `;
@@ -555,13 +897,25 @@
         }
 
         async function saveTariff() {
-            const resourceIds = [...document.querySelectorAll('#tariff-form input[type="checkbox"][value]:checked')].map(input => Number(input.value));
+            if (!state.editingTariff) {
+                return showStatus('Сначала откройте редактор тарифа', 'error');
+            }
+            const name = document.getElementById('tariff-name').value.trim();
+            const price = Number(document.getElementById('tariff-price').value || 0);
+            const durationDays = Number(document.getElementById('tariff-days').value || 0);
+            if (!name) {
+                return showStatus('Укажите название тарифа', 'error');
+            }
+            if (price < 0 || durationDays < 0) {
+                return showStatus('Цена и срок не могут быть отрицательными', 'error');
+            }
+            const resourceIds = [...document.querySelectorAll('#tariff-form [data-resource-checkbox]:checked')].map(input => Number(input.value));
             const payload = {
                 id: state.editingTariff?.id || null,
-                name: document.getElementById('tariff-name').value.trim(),
+                name,
                 description: document.getElementById('tariff-description').value.trim(),
-                price: Number(document.getElementById('tariff-price').value || 0),
-                duration_days: Number(document.getElementById('tariff-days').value || 0),
+                price,
+                duration_days: durationDays,
                 is_trial: document.getElementById('tariff-trial').checked,
                 is_hidden: document.getElementById('tariff-hidden').checked,
                 require_email: document.getElementById('tariff-email').checked,
@@ -577,6 +931,9 @@
 
         async function deleteTariff(id) {
             if (!confirm('Удалить тариф?')) return;
+            if (Number(state.editingTariff?.id || 0) === Number(id)) {
+                closeTariffForm();
+            }
             await fetchJson(`/twa/tariffs/${id}`, { method: 'DELETE', headers: authHeaders() });
             await loadTariffs();
             showStatus('Тариф удален');
@@ -652,6 +1009,7 @@
                 }
                 document.getElementById('app-shell').classList.remove('hidden');
                 await Promise.all([loadDashboard(), loadResources(), loadTariffs(), loadUsers(), loadPayments(), loadSettings()]);
+                renderTariffEditor();
             } catch (error) {
                 showStatus(error.message, 'error');
             }
@@ -665,5 +1023,3 @@
     </script>
 </body>
 </html>
-
-
