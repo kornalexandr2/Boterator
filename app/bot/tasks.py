@@ -1,5 +1,5 @@
-﻿import json
 import asyncio
+import json
 from datetime import timedelta
 
 from aiogram import Bot
@@ -7,11 +7,13 @@ from loguru import logger
 from sqlalchemy import select
 
 from app.api.common import activate_user_access, resolve_runtime_settings, utcnow
+from app.config import settings
 from app.database.models import Payment, Subscription, Tariff, User
 from app.database.session import async_session
-from app.config import settings
 from app.payments.base import build_payment_provider
 from app.services.access import revoke_user_from_inaccessible_chats
+
+SUBSCRIPTION_CHECK_INTERVAL_SECONDS = 15 * 60
 
 
 async def _notify_expiring(bot: Bot, session) -> None:
@@ -87,6 +89,24 @@ async def _attempt_recurring_charge(session, bot: Bot, sub: Subscription) -> boo
     return True
 
 
+def _can_use_grace_period(sub: Subscription, grace_period_days: int) -> bool:
+    if grace_period_days <= 0:
+        return False
+    return bool(sub.auto_renew_enabled and sub.recurring_token and sub.renewal_provider)
+
+
+async def _deactivate_subscription(bot: Bot, session, sub: Subscription) -> None:
+    sub.is_active = False
+    sub.in_grace_period = False
+    sub.grace_end_date = None
+    try:
+        await bot.send_message(sub.user_id, "Подписка истекла. Доступ к ресурсам закрыт.")
+    except Exception as exc:
+        logger.warning(f"Failed to notify expired user {sub.user_id}: {exc}")
+    await session.flush()
+    await revoke_user_from_inaccessible_chats(bot, session, sub.user_id)
+
+
 async def _handle_expired(bot: Bot, session) -> None:
     now = utcnow()
     runtime_settings = await resolve_runtime_settings(session)
@@ -102,11 +122,11 @@ async def _handle_expired(bot: Bot, session) -> None:
         if user and (user.is_admin or user.telegram_id in settings.bot.admin_ids):
             continue
 
-        renewed = await _attempt_recurring_charge(session, bot, sub)
-        if renewed:
-            continue
-
-        if grace_period_days > 0 and not sub.in_grace_period:
+        grace_available = _can_use_grace_period(sub, grace_period_days)
+        if grace_available and not sub.in_grace_period:
+            renewed = await _attempt_recurring_charge(session, bot, sub)
+            if renewed:
+                continue
             sub.in_grace_period = True
             sub.grace_end_date = now + timedelta(days=grace_period_days)
             sub.renewal_failed_at = now
@@ -119,18 +139,10 @@ async def _handle_expired(bot: Bot, session) -> None:
                 logger.warning(f"Failed to notify grace period for {sub.user_id}: {exc}")
             continue
 
-        if sub.in_grace_period and sub.grace_end_date and sub.grace_end_date >= now:
+        if grace_available and sub.in_grace_period and sub.grace_end_date and sub.grace_end_date >= now:
             continue
 
-        sub.is_active = False
-        sub.in_grace_period = False
-        sub.grace_end_date = None
-        try:
-            await bot.send_message(sub.user_id, "Подписка истекла. Доступ к ресурсам закрыт.")
-        except Exception as exc:
-            logger.warning(f"Failed to notify expired user {sub.user_id}: {exc}")
-        await session.flush()
-        await revoke_user_from_inaccessible_chats(bot, session, sub.user_id)
+        await _deactivate_subscription(bot, session, sub)
 
 
 async def check_subscriptions(bot: Bot):
@@ -146,13 +158,9 @@ async def check_subscriptions(bot: Bot):
                     await session.commit()
         except Exception as exc:
             logger.error(f"Error in subscription check task: {exc}")
-        await asyncio.sleep(6 * 3600)
+        await asyncio.sleep(SUBSCRIPTION_CHECK_INTERVAL_SECONDS)
 
 
 def start_background_tasks(bot: Bot):
     asyncio.create_task(check_subscriptions(bot))
     logger.info("Background tasks started.")
-
-
-
-
